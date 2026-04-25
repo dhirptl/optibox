@@ -1,2 +1,15 @@
 __pycache__/
 *.pyc
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Generated silo state (server.py overwrites this; keep mock instead)
+frontend/public/data/silo_setup.csv
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
