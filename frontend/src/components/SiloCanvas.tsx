@@ -183,7 +183,7 @@ function Corridor({
         aria-label={`Shuttle aisle ${aisle}`}
         style={{
           position: "absolute",
-          left: "-13px",
+          left: "-12px",
           top: "1px",
           width: "12px",
           height: "8px",

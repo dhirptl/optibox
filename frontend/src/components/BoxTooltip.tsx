@@ -14,7 +14,7 @@ export function BoxTooltip({ slot, onClose }: Props) {
 
   return (
     <div
-      className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-white rounded-lg border border-border-soft shadow-lg px-5 py-4 min-w-[340px]"
+      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg border border-border-soft shadow-lg px-5 py-4 min-w-[340px]"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-start justify-between gap-4 mb-3">
