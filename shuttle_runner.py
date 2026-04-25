@@ -110,38 +110,43 @@ def _estimate_task_seconds(
     handling_seconds: int,
 ) -> int:
     """
-    Estimate full duration using (handling + distance) per movement leg.
+    Estimate full duration with updated timing rules:
+    - Inbound pick + store: handling + store_x
+    - Stored pick + deliver to x=0: handling + pick_x
+    - Instant cross-dock at x=0: 20 seconds fixed
     """
-    current_x = shuttle.current_x
-    total = 0
-
     if task.task_type == ShuttleTaskType.INBOUND_CROSS_DOCK:
-        # Both operations happen at x=0.
         return handling_seconds * 2
 
-    # Start from head if we need inbound pickup at x=0.
-    if task.inbound_box is not None:
-        total += _leg_seconds(current_x=current_x, target_x=0, handling_seconds=handling_seconds)
-        current_x = 0
+    total = 0
+    has_rule_applied = False
 
-    # Leg: head/current -> storage point (drop inbound).
-    if task.store_slot is not None:
+    # Rule 1: take inbound at x=0 and store at x=store_x.
+    if task.inbound_box is not None and task.store_slot is not None:
         store_x = task.store_slot[2]
-        total += _leg_seconds(current_x=current_x, target_x=store_x, handling_seconds=handling_seconds)
-        current_x = store_x
+        total += handling_seconds + store_x
+        has_rule_applied = True
 
-    # Leg: storage/current -> outbound pick point.
-    if task.pick_slot is not None:
+    # Rule 2: pick a stored box at x=pick_x and deliver to x=0.
+    if task.pick_slot is not None and task.drop_to_head:
         pick_x = task.pick_slot[2]
-        total += _leg_seconds(current_x=current_x, target_x=pick_x, handling_seconds=handling_seconds)
-        current_x = pick_x
+        total += handling_seconds + pick_x
+        has_rule_applied = True
 
-    # Final leg: outbound/current -> head for shipping.
+    # Outbound-only fallback if used without inbound in same task.
+    if task.pick_slot is not None and task.inbound_box is None and task.drop_to_head:
+        pick_x = task.pick_slot[2]
+        total = handling_seconds + pick_x
+        has_rule_applied = True
+
+    if has_rule_applied:
+        return max(total, handling_seconds)
+
+    # Safety fallback for any task shape not covered above.
+    current_x = shuttle.current_x
     if task.drop_to_head:
-        total += _leg_seconds(current_x=current_x, target_x=0, handling_seconds=handling_seconds)
-
-    # Keep a minimum positive duration to avoid zero-time tasks.
-    return max(total, handling_seconds)
+        return handling_seconds + abs(current_x - 0)
+    return handling_seconds
 
 
 def _leg_seconds(current_x: int, target_x: int, handling_seconds: int) -> int:
