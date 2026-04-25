@@ -1,6 +1,6 @@
 ---
 name: Optibox simulation structure
-overview: "Greenfield layout for `/Users/dhirpatel/optibox`: shared models, a thin `main.py` clock loop, and three small modules by responsibility (slot heuristic, shuttle movement, pallet/intercept)—no team-based naming."
+overview: "Greenfield layout for `/Users/dhirpatel/optibox`: shared models, a thin `main.py` clock loop, and three small modules by responsibility (corridor slot heuristic, shuttle movement, pallet/intercept)—no team-based naming."
 todos:
   - id: models-constants
     content: "Add models.py (+ optional constants.py): Box parse, Slot/Shuttle/Pallet/Silo/Dispatcher shells with grid helpers"
@@ -29,6 +29,15 @@ isProject: false
 
 [`/Users/dhirpatel/optibox`](file:///Users/dhirpatel/optibox) is **empty**. The plan below follows your simulation spec without assigning work to numbered developers.
 
+## Corridor shuttle operating model (must-have behavior)
+
+- **Continuous loop at head (`x=0`)**: Every shuttle repeatedly starts by taking one inbound box from the `1000 boxes/hour` feed at `x=0`.
+- **Rule 1: Immediate cross-dock when possible**: If that inbound box destination already has an active pallet slot, do not store it. Pick at `x=0` (10s) and drop to pallet at `x=0` (10s).
+- **Rule 2: Store while traveling to next outbound**: If inbound cannot be cross-docked, store it on the way to an outbound box that should be shipped (destination with active pallet).
+- **Place depth preference**: When storing this inbound box, prefer dropping in `z=2`.
+- **Use `z=1` only for destination stacking**: Drop into `z=1` only when the `z=2` box in that location has the same destination as the inbound box, to avoid future relocation waste.
+- **Cycle repeats from head**: After delivering outbound to `x=0`, shuttle immediately takes the next inbound and repeats the same decision logic.
+
 ## Structure review (what works well)
 
 - **Separation of concerns**: `models.py` (data) vs a **slot heuristic** module vs a **shuttle runner** vs **pallet/dispatch** logic vs `main.py` (orchestration) keeps scoring, motion, and pallet rules in different files.
@@ -51,10 +60,12 @@ You can merge any of the three logic modules later if the repo stays small; spli
 
 ## Gaps and decisions to bake in early
 
-1. **Cross-module inputs**: Define stable function signatures early: slot heuristic needs lane, silo read access, inbound destination, optional outbound X for overshoot shield; shuttle runner needs a small task type and a single place that sets busy time / `is_idle`; dispatch needs inventory by destination and active pallet state.
+1. **Cross-module inputs**: Define stable function signatures early: slot heuristic needs lane, silo read access, inbound destination, and the selected outbound target (for "store-on-the-way"); shuttle runner needs a small task type and a single place that sets busy time / `is_idle`; dispatch needs inventory by destination and active pallet state.
 2. **Constants**: Centralize literals (`10`, `20`, `12`, `8`, `32`, grid size) in `constants.py` or a `SimulationConfig` in `models.py`.
 3. **Box 20-digit format**: Fix one parser (`parse_box_id` → `Box`) and document digit positions; tests keep random inbound consistent.
-4. **Inbound → shuttle mapping**: Define how random feed picks one of the shuttles (aisle + Y) so slot search stays “within that shuttle’s lane.”
+4. **Inbound → shuttle mapping**: Define how random feed picks one of the shuttles (aisle + Y) so slot search stays "within that shuttle's lane."
+5. **Corridor slot policy**: Implement "drop in `z=2` by default; use `z=1` only if backing `z=2` has same destination" as a hard rule in slot selection.
+6. **Cross-dock priority at `x=0`**: Inbound destination with active pallet must bypass storage and go directly to pallet handling.
 
 ## Optional extra
 
@@ -79,11 +90,22 @@ flowchart LR
 |--------|----------------|----------------|
 | **1** | `models.py`: core types, parsing, minimal grid/inventory helpers | Everything imports this. |
 | **2** | `constants.py` + stub `main.py` with the real tick order and `t += 1` | Locks orchestration. |
-| **3** | `dispatch.py`: open pallet when count ≥ 12 and active < 8, reserve 12, intercept vs store | First steps of the tick list; independent of slot scoring. |
-| **4** | `slot_heuristic.py`: three priorities, X tie-break, overshoot filter | Needs read-only silo + lane + optional outbound X. |
-| **5** | `shuttle_runner.py`: idle + queue, A/B/C, durations | Consumes tasks from dispatch + slot choice. |
-| **6** | Wire `main.py`: random inbound, dispatch → heuristic → enqueue runner; tick shuttles; metrics/termination | Full simulation. |
+| **3** | `dispatch.py`: open pallet when count >= 12 and active < 8, reserve 12, detect "inbound destination has active pallet" | Enables mandatory direct cross-dock at `x=0`. |
+| **4** | `slot_heuristic.py`: enforce corridor placement (`z=2` default, `z=1` only same-destination-behind), X tie-break, on-the-way bias | Needs read-only silo + lane + selected outbound target X. |
+| **5** | `shuttle_runner.py`: explicit cycle "take inbound at `x=0` -> cross-dock or store -> pick outbound -> return to `x=0`" with durations | Encodes the continuous shuttle behavior you described. |
+| **6** | Wire `main.py`: random inbound, dispatch gate, corridor slot decision, enqueue runner; tick shuttles; metrics/termination | Full simulation with corridor logic active each cycle. |
 | **7** | Tests as above | Regression safety. |
+
+## Per-cycle decision flow (corridor logic)
+
+1. Shuttle is at or returns to `x=0`.
+2. Pick next inbound box from feed (`10s` handling).
+3. If inbound destination has active pallet, drop directly to pallet at `x=0` (`10s`) and finish cycle.
+4. Otherwise choose an outbound box to ship (destination with active pallet).
+5. While traveling toward that outbound X, drop inbound into a valid slot:
+   - Prefer `z=2`.
+   - Use `z=1` only when the box in `z=2` is same destination.
+6. Pick outbound, return to `x=0`, drop for shipping, and immediately start next cycle.
 
 ## Spec checks (logic only)
 
@@ -97,4 +119,4 @@ flowchart LR
 
 ---
 
-**Summary**: Same architecture as your spec, without team labels. Build **models + main skeleton**, then **dispatch → slot heuristic → shuttle runner**, wire `main.py`, add tests. Use boring module names and stable APIs between them.
+**Summary**: Same architecture as your spec, without team labels, now with explicit corridor-cycle behavior: always start from inbound at `x=0`, direct-drop when pallet is available, otherwise store on the way to an outbound pick with strict `z=2`/`z=1` placement rules.
