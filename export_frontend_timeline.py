@@ -52,6 +52,7 @@ def _snapshot_tick_y1(state: SimulationState) -> Dict[str, Any]:
         "time": state.t,
         "silo_y1_boxes": _silo_y1_boxes(state.silo),
         "carriers_y1": _carriers_y1(state.shuttles),
+        "pallets": _pallet_status(state),
     }
 
 
@@ -108,6 +109,27 @@ def _carriers_y1(shuttles: List[Shuttle]) -> List[Dict[str, Any]]:
 def _position_to_code(position: Position) -> str:
     aisle, side, x, y, z = position
     return f"{aisle:02d}{side:02d}{x:03d}{y:02d}{z:02d}"
+
+
+def _pallet_status(state: SimulationState) -> List[Dict[str, Any]]:
+    """
+    Per-tick pallet fullness by destination.
+    - filled_boxes: current progress in the active pallet (0..11)
+    - completed_pallets: total full pallets shipped for this destination
+    """
+    pallet_size = state.config.pallet_size
+    statuses: List[Dict[str, Any]] = []
+    for destination in sorted(state.dispatcher.active_pallets.keys()):
+        shipped = state.shipped_by_destination.get(destination, 0)
+        statuses.append(
+            {
+                "destination": destination,
+                "filled_boxes": shipped % pallet_size,
+                "completed_pallets": shipped // pallet_size,
+                "pallet_size": pallet_size,
+            }
+        )
+    return statuses
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
