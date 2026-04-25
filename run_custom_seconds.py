@@ -143,10 +143,13 @@ def run_custom_seconds(
 if __name__ == "__main__":
     # Change this value to simulate any number of seconds.
     TICKS = 1000
+    # Change this value to get a different inbound sequence.
+    INBOUND_SEED = 7
     # Choose "summary" for compact output, "active_only" or "full" for detail.
     DETAIL = "summary"
     log_file = run_custom_seconds(
         ticks=TICKS,
+        inbound_seed=INBOUND_SEED,
         detail=DETAIL,
         max_log_lines=20_000,
     )

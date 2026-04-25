@@ -125,7 +125,7 @@ def _estimate_task_seconds(
         return handling_seconds * 2
     if task.task_type == ShuttleTaskType.RELOCATE:
         if task.pick_slot is not None and task.store_slot is not None:
-            return handling_seconds + abs(task.store_slot[2] - task.pick_slot[2])
+            return (2 * handling_seconds) + abs(task.store_slot[2] - task.pick_slot[2])
         return handling_seconds
 
     total = 0

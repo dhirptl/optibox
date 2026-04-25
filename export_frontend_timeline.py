@@ -19,7 +19,7 @@ from models import Position, Silo, Shuttle
 def export_frontend_timeline(
     ticks: int,
     csv_path: str = "silo-semi-empty.csv",
-    inbound_seed: int = 7,
+    inbound_seed: int = 8,
     output_json_path: str = "frontend_timeline.json",
 ) -> Path:
     if ticks < 0:
@@ -159,6 +159,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    # Example:
+    # python export_frontend_timeline.py --ticks 1000 --inbound-seed 7
+    # Change --inbound-seed to generate a different deterministic sequence.
     args = _build_arg_parser().parse_args()
     output = export_frontend_timeline(
         ticks=args.ticks,
