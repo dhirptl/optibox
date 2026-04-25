@@ -20,8 +20,8 @@ export function BottomBar({
       <div className="flex items-center gap-3 flex-[3]">
         <span className="w-2.5 h-2.5 rounded-full bg-status-green animate-pulse shrink-0" />
         <span
-          className="font-mono text-text-primary truncate"
-          style={{ fontSize: "20px" }}
+          className="text-text-primary truncate"
+          style={{ fontFamily: "Georgia, serif", fontSize: "18px" }}
         >
           {actionMessage}
         </span>

@@ -86,14 +86,14 @@ export function StartModal({ onClose, onAfterRandomize }: Props) {
             disabled={loading}
             className="w-full px-4 py-2.5 rounded-md bg-accent text-white text-sm hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Randomizing…" : "🎲 Randomize Silo"}
+            {loading ? "Randomizing…" : "Randomize Silo"}
           </button>
           <button
             type="button"
             disabled
             className="w-full px-4 py-2.5 rounded-md bg-pallet-empty text-text-secondary text-sm opacity-50 cursor-not-allowed"
           >
-            ▶ Start Simulation
+            Start Simulation
           </button>
         </div>
       </div>

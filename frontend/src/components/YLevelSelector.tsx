@@ -36,7 +36,7 @@ export function YLevelSelector({ y, setY }: Props) {
                   : " opacity-40 cursor-not-allowed")
               }
             >
-              {enabled ? `Y=${level}` : "—"}
+              {`Y=${level}`}
             </button>
           );
         })}

@@ -55,7 +55,12 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-bg-cream text-text-primary">
       <BackendOfflineBanner healthy={healthy} />
-      <TopBar onAfterReset={refetch} />
+      <TopBar
+        onAfterReset={() => {
+          refetch();
+          setStartModalOpen(true);
+        }}
+      />
       <YLevelSelector y={y} setY={setY} />
 
       <div className="flex-1 flex overflow-hidden">

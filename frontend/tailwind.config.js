@@ -21,8 +21,8 @@ export default {
         "status-green": "#5CB874",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
+        sans: ["Georgia", "serif"],
+        mono: ["Georgia", "serif"],
       },
     },
   },

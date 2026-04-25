@@ -34,7 +34,7 @@ export function TopBar({ onAfterReset }: Props) {
         </span>
       </div>
 
-      <div className="flex items-center gap-10 ml-4">
+      <div className="flex items-center gap-10 ml-24 mt-3">
         <Metric label="FULL PALLETS" value="—%" />
         <Metric label="PALLETS COMPLETED" value="—" />
         <Metric label="AVG TIME / PALLET" value="—" />
