@@ -90,10 +90,20 @@ def run_tick_batch(
     open_eligible_pallets(state.dispatcher, available, state.config)
 
     # Phase 2: inbound is known at x=0, create executable task.
-    # We only enqueue tasks that are fully decided and executable.
-    for inbound_box in inbound_boxes:
-        assigned_shuttle = _pick_next_shuttle(state)
-        _assign_task_from_inbound(state, assigned_shuttle, inbound_box)
+    # Inbound can only be assigned to shuttles that are available at x=0.
+    # We also reserve slots already committed by active/queued tasks so new
+    # assignments in this tick do not collide with future planned placements/picks.
+    reserved_store_slots, reserved_pick_slots = _collect_reserved_slots(state.shuttles)
+    ready_shuttles = get_ready_shuttles_for_inbound(state)
+    inbound_list = list(inbound_boxes)
+    for shuttle, inbound_box in zip(ready_shuttles, inbound_list):
+        _assign_task_from_inbound(
+            state,
+            shuttle,
+            inbound_box,
+            reserved_store_slots,
+            reserved_pick_slots,
+        )
 
     # Phase 3: run one second of shuttle execution.
     results = step_all_shuttles(state.shuttles, state.silo, state.config)
@@ -107,6 +117,8 @@ def _assign_task_from_inbound(
     state: SimulationState,
     shuttle: Shuttle,
     inbound_box: Box,
+    reserved_store_slots: set[Position],
+    reserved_pick_slots: set[Position],
 ) -> None:
     # Decide immediately at x=0 whether this inbound is cross-dock or store-path.
     decision = decide_inbound(inbound_box, state.dispatcher)
@@ -131,6 +143,7 @@ def _assign_task_from_inbound(
         lane_aisle=shuttle.aisle,
         lane_y=shuttle.y,
         active_destinations=set(state.dispatcher.active_pallets.keys()),
+        blocked_positions=reserved_pick_slots,
     )
     if pick_slot is None:
         # No shippable target in this lane right now.
@@ -143,6 +156,7 @@ def _assign_task_from_inbound(
         lane_aisle=shuttle.aisle,
         lane_y=shuttle.y,
         outbound_x=outbound_x,
+        blocked_positions=reserved_store_slots,
     )
     if store_decision is None:
         # No legal storage position was found under corridor policies.
@@ -151,6 +165,8 @@ def _assign_task_from_inbound(
     pick_slot_obj = state.silo.get_slot(pick_slot)
     outbound_box = pick_slot_obj.box if pick_slot_obj is not None else None
     # Enqueue one fully defined store-and-pick cycle.
+    reserved_store_slots.add(store_decision.position)
+    reserved_pick_slots.add(pick_slot)
     shuttle.enqueue(
         ShuttleTask(
             task_type=ShuttleTaskType.INBOUND_STORE_AND_PICK,
@@ -168,6 +184,7 @@ def _find_nearest_outbound_pick_slot(
     lane_aisle: int,
     lane_y: int,
     active_destinations: set[str],
+    blocked_positions: set[Position],
 ) -> Optional[Position]:
     # Scan the shuttle lane and keep only boxes for active pallet destinations.
     candidates: List[Position] = []
@@ -178,6 +195,8 @@ def _find_nearest_outbound_pick_slot(
         if slot.box is None:
             continue
         if slot.box.destination not in active_destinations:
+            continue
+        if position in blocked_positions:
             continue
         candidates.append(position)
 
@@ -218,4 +237,39 @@ def _build_shuttles(config: SimulationConfig) -> List[Shuttle]:
                 )
             )
     return shuttles
+
+
+def get_ready_shuttles_for_inbound(state: SimulationState) -> List[Shuttle]:
+    """
+    Shuttles that are allowed to receive a new inbound this tick.
+
+    Rule: shuttle must be available at x=0 and have no pending work.
+    """
+    ready: List[Shuttle] = []
+    for shuttle in state.shuttles:
+        if shuttle.active_task is not None:
+            continue
+        if shuttle.queue:
+            continue
+        if shuttle.current_x != 0:
+            continue
+        ready.append(shuttle)
+    return ready
+
+
+def _collect_reserved_slots(shuttles: List[Shuttle]) -> tuple[set[Position], set[Position]]:
+    reserved_store: set[Position] = set()
+    reserved_pick: set[Position] = set()
+    for shuttle in shuttles:
+        if shuttle.active_task is not None:
+            if shuttle.active_task.store_slot is not None:
+                reserved_store.add(shuttle.active_task.store_slot)
+            if shuttle.active_task.pick_slot is not None:
+                reserved_pick.add(shuttle.active_task.pick_slot)
+        for queued_task in shuttle.queue:
+            if queued_task.store_slot is not None:
+                reserved_store.add(queued_task.store_slot)
+            if queued_task.pick_slot is not None:
+                reserved_pick.add(queued_task.pick_slot)
+    return reserved_store, reserved_pick
 

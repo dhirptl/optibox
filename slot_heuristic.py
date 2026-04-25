@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 from models import Box, Position, Silo
 
@@ -22,6 +22,7 @@ def choose_store_slot_on_path(
     lane_aisle: int,
     lane_y: int,
     outbound_x: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[StoreSlotDecision]:
     """
     Corridor storage policy for one shuttle lane.
@@ -48,6 +49,7 @@ def choose_store_slot_on_path(
         lane_aisle=lane_aisle,
         lane_y=lane_y,
         outbound_x=outbound_x,
+        blocked_positions=blocked_positions,
     )
     if same_destination_stack is not None:
         return StoreSlotDecision(
@@ -62,6 +64,7 @@ def choose_store_slot_on_path(
         lane_aisle=lane_aisle,
         lane_y=lane_y,
         outbound_x=outbound_x,
+        blocked_positions=blocked_positions,
     )
     if z2_slot is not None:
         return StoreSlotDecision(
@@ -79,6 +82,7 @@ def choose_store_slot_on_path(
         lane_aisle=lane_aisle,
         lane_y=lane_y,
         outbound_x=outbound_x,
+        blocked_positions=blocked_positions,
     )
     if overshoot_stack is not None:
         return StoreSlotDecision(
@@ -91,6 +95,7 @@ def choose_store_slot_on_path(
         lane_aisle=lane_aisle,
         lane_y=lane_y,
         outbound_x=outbound_x,
+        blocked_positions=blocked_positions,
     )
     if overshoot_z2_slot is not None:
         return StoreSlotDecision(
@@ -106,6 +111,7 @@ def choose_store_slot_on_path(
         silo=silo,
         lane_aisle=lane_aisle,
         lane_y=lane_y,
+        blocked_positions=blocked_positions,
     )
     if forced_mixed_stack is not None:
         return StoreSlotDecision(
@@ -123,6 +129,7 @@ def _find_on_path_same_destination_stack_slot(
     lane_aisle: int,
     lane_y: int,
     outbound_x: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[Position]:
     # Walk from head (x=1) to outbound target and pick earliest valid stack slot.
     for x in _on_path_x_values(outbound_x):
@@ -142,6 +149,8 @@ def _find_on_path_same_destination_stack_slot(
             # To stack at z=1, the front position must be empty.
             if not z1_slot.is_empty:
                 continue
+            if blocked_positions and z1_pos in blocked_positions:
+                continue
             return z1_pos
     return None
 
@@ -151,6 +160,7 @@ def _find_nearest_on_path_empty_z2_slot(
     lane_aisle: int,
     lane_y: int,
     outbound_x: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[Position]:
     candidates: List[Tuple[int, Position]] = []
     for x in _on_path_x_values(outbound_x):
@@ -167,6 +177,8 @@ def _find_nearest_on_path_empty_z2_slot(
             # And z=2 itself must be empty.
             if not z2_slot.is_empty:
                 continue
+            if blocked_positions and z2_pos in blocked_positions:
+                continue
             candidates.append((x, z2_pos))
 
     if not candidates:
@@ -181,6 +193,7 @@ def _find_overshoot_same_destination_stack_slot(
     lane_aisle: int,
     lane_y: int,
     outbound_x: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[Position]:
     for x in _overshoot_x_values(silo, outbound_x):
         for side in (1, 2):
@@ -196,6 +209,8 @@ def _find_overshoot_same_destination_stack_slot(
                 continue
             if not z1_slot.is_empty:
                 continue
+            if blocked_positions and z1_pos in blocked_positions:
+                continue
             return z1_pos
     return None
 
@@ -205,6 +220,7 @@ def _find_nearest_overshoot_empty_z2_slot(
     lane_aisle: int,
     lane_y: int,
     outbound_x: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[Position]:
     candidates: List[Tuple[int, Position]] = []
     for x in _overshoot_x_values(silo, outbound_x):
@@ -219,6 +235,8 @@ def _find_nearest_overshoot_empty_z2_slot(
                 continue
             if not z2_slot.is_empty:
                 continue
+            if blocked_positions and z2_pos in blocked_positions:
+                continue
             candidates.append((x, z2_pos))
 
     if not candidates:
@@ -231,6 +249,7 @@ def _find_nearest_global_forced_mixed_stack_slot(
     silo: Silo,
     lane_aisle: int,
     lane_y: int,
+    blocked_positions: Optional[Set[Position]] = None,
 ) -> Optional[Position]:
     candidates: List[Tuple[int, Position]] = []
     for x in _all_lane_x_values(silo):
@@ -245,6 +264,8 @@ def _find_nearest_global_forced_mixed_stack_slot(
                 continue
             # Forced stack only when z=2 is already occupied.
             if z2_slot.box is None:
+                continue
+            if blocked_positions and z1_pos in blocked_positions:
                 continue
             candidates.append((x, z1_pos))
 
