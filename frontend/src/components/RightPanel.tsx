@@ -1,144 +1,149 @@
-import type { ReactNode } from 'react'
-import type { EventLogEntry, PalletSlot, RightPanelTab } from '../lib/types'
+import type { EventLogEntry, Pallet } from "../lib/types";
+import type { RightPanelTab } from "../hooks/useRightPanelTab";
 
-interface RightPanelProps {
-  tab: RightPanelTab
-  setTab: (tab: RightPanelTab) => void
-  palletSlots: PalletSlot[]
-  events: EventLogEntry[]
-}
+type Props = {
+  tab: RightPanelTab;
+  setTab: (tab: RightPanelTab) => void;
+  pallets: Pallet[];
+  events: EventLogEntry[];
+};
 
-export function RightPanel({ tab, setTab, palletSlots, events }: RightPanelProps) {
+export function RightPanel({ tab, setTab, pallets, events }: Props) {
   return (
-    <aside className="w-[280px] shrink-0 bg-bg-white border-l border-border-soft h-full flex flex-col">
-      <div className="h-10 border-b border-border-soft grid grid-cols-2">
-        <TabButton active={tab === 'pallets'} onClick={() => setTab('pallets')}>
-          Pallet Slots
-        </TabButton>
-        <TabButton active={tab === 'events'} onClick={() => setTab('events')}>
-          Event Log
-        </TabButton>
+    <aside className="w-[280px] shrink-0 border-l border-border-soft bg-white/40 flex flex-col">
+      <div className="flex border-b border-border-soft">
+        <TabButton label="Pallet Slots" active={tab === "pallets"} onClick={() => setTab("pallets")} />
+        <TabButton label="Event Log" active={tab === "events"} onClick={() => setTab("events")} />
       </div>
-      <div className="flex-1 overflow-auto p-4">
-        {tab === 'pallets' ? (
-          <PalletSlotsTab palletSlots={palletSlots} />
-        ) : (
-          <EventLogTab events={events} />
-        )}
+
+      <div className="flex-1 overflow-y-auto">
+        {tab === "pallets" ? <PalletsTab pallets={pallets} /> : <EventsTab events={events} />}
       </div>
     </aside>
-  )
+  );
 }
 
 function TabButton({
+  label,
   active,
   onClick,
-  children,
 }: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
+  label: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-sm ${
-        active
-          ? 'text-text-primary border-b-2 border-accent'
-          : 'text-text-secondary border-b-2 border-transparent'
-      }`}
+      className={
+        "flex-1 text-xs py-3 tracking-wide " +
+        (active
+          ? "text-text-primary font-semibold border-b-2 border-accent -mb-px"
+          : "text-text-secondary hover:text-text-primary")
+      }
     >
-      {children}
+      {label}
     </button>
-  )
+  );
 }
 
-function PalletSlotsTab({ palletSlots }: { palletSlots: PalletSlot[] }) {
-  const robot1 = palletSlots.filter((slot) => slot.robot_id === 1)
-  const robot2 = palletSlots.filter((slot) => slot.robot_id === 2)
+function PalletsTab({ pallets }: { pallets: Pallet[] }) {
+  const robot1 = pallets.filter((p) => p.robot_id === 1);
+  const robot2 = pallets.filter((p) => p.robot_id === 2);
+  const activeCount = pallets.filter((p) => p.destination !== null).length;
+
   return (
-    <div>
-      <p className="text-[10px] uppercase tracking-ui text-text-secondary mb-3">
-        8 active slots
-      </p>
-      <RobotSection title="Robot 1" slots={robot1} />
-      <RobotSection title="Robot 2" slots={robot2} />
+    <div className="px-4 py-4 flex flex-col gap-4">
+      <div className="text-[10px] tracking-widest text-text-secondary">
+        {activeCount} ACTIVE SLOTS
+      </div>
+
+      <RobotSection label="ROBOT 1" pallets={robot1} />
+      <RobotSection label="ROBOT 2" pallets={robot2} />
     </div>
-  )
+  );
 }
 
-function RobotSection({ title, slots }: { title: string; slots: PalletSlot[] }) {
+function RobotSection({ label, pallets }: { label: string; pallets: Pallet[] }) {
   return (
-    <section className="mb-4">
-      <p className="text-[10px] uppercase tracking-ui text-text-secondary mb-2">
-        {title}
-      </p>
-      <div className="space-y-2">
-        {slots.map((slot) => (
-          <article
-            key={slot.slot_id}
-            className="border border-border-soft rounded-lg p-2.5 bg-bg-white"
-          >
-            <div className="flex justify-between items-center mb-2">
-              <strong>{slot.slot_id.toString().padStart(2, '0')}</strong>
-              <span className="font-mono text-xs text-text-secondary italic">
-                {slot.destination ?? 'AWAITING DESTINATION'}
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-1 mb-2">
-              {Array.from({ length: 12 }, (_, i) => (
-                <div
-                  key={i}
-                  className={`h-3 w-3 rounded-[2px] ${
-                    i < slot.filled ? 'bg-pallet-fill' : 'bg-pallet-empty'
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="text-right text-xs text-text-secondary">
-              {slot.filled}/{slot.capacity}
-            </div>
-          </article>
+    <div className="flex flex-col gap-2">
+      <div className="text-[10px] tracking-widest text-text-secondary">{label}</div>
+      {pallets.map((p) => (
+        <PalletCard key={`${p.robot_id}-${p.slot_id}`} pallet={p} />
+      ))}
+    </div>
+  );
+}
+
+function PalletCard({ pallet }: { pallet: Pallet }) {
+  const awaiting = pallet.destination === null;
+  return (
+    <div className="border border-border-soft rounded-md px-3 py-2 bg-white/60 flex flex-col gap-2">
+      <div className="flex justify-between items-center">
+        <span className="font-bold text-sm text-text-primary">
+          {pallet.slot_id.toString().padStart(2, "0")}
+        </span>
+        <span className="font-mono text-[11px] text-text-secondary">
+          {awaiting ? "AWAITING DESTINATION" : pallet.destination}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1">
+        {Array.from({ length: 12 }, (_, i) => (
+          <div
+            key={i}
+            className={
+              "h-3 rounded-[2px] " +
+              (i < pallet.filled ? "bg-pallet-fill" : "bg-pallet-empty")
+            }
+          />
         ))}
       </div>
-    </section>
-  )
+
+      <div className="flex justify-end">
+        <span className="font-mono text-[10px] text-text-secondary">
+          {pallet.filled}/{pallet.capacity}
+        </span>
+      </div>
+    </div>
+  );
 }
 
-function EventLogTab({ events }: { events: EventLogEntry[] }) {
+function EventsTab({ events }: { events: EventLogEntry[] }) {
   return (
-    <div>
-      <p className="text-[10px] uppercase tracking-ui text-text-secondary mb-3">
-        Recent events
-      </p>
+    <div className="px-4 py-4 flex flex-col gap-2">
+      <div className="text-[10px] tracking-widest text-text-secondary mb-2">
+        RECENT EVENTS
+      </div>
       {events.length === 0 ? (
-        <p className="text-sm text-text-secondary">
+        <div className="text-text-secondary text-xs italic">
           No events yet. Start simulation to see activity.
-        </p>
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {events.slice(0, 50).map((event, idx) => (
-            <li key={idx} className="text-sm border-b border-slot-empty pb-2">
-              <div className="font-mono text-xs text-text-secondary">
-                {formatTime(event.t)}
-              </div>
-              <div className="text-[10px] uppercase tracking-ui text-text-secondary">
-                {event.type}
-              </div>
-              <div>{event.message}</div>
-            </li>
-          ))}
-        </ul>
+        events.slice(0, 50).map((ev, i) => <EventRow key={i} entry={ev} />)
       )}
     </div>
-  )
+  );
 }
 
-function formatTime(seconds: number) {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `00:${mins.toString().padStart(2, '0')}:${secs
-    .toString()
-    .padStart(2, '0')}`
+function EventRow({ entry }: { entry: EventLogEntry }) {
+  const ts = formatTimestamp(entry.t);
+  const message = entry.message.replace(/\b(\d{14})(\d{6})\b/g, "…$2");
+  return (
+    <div className="flex items-baseline gap-2 text-[11px] py-1 border-b border-border-soft/50">
+      <span className="font-mono text-text-secondary">{ts}</span>
+      <span className="uppercase text-[9px] tracking-widest text-accent">
+        {entry.type}
+      </span>
+      <span className="text-text-primary truncate">{message}</span>
+    </div>
+  );
+}
+
+function formatTimestamp(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return [h, m, s].map((n) => n.toString().padStart(2, "0")).join(":");
 }

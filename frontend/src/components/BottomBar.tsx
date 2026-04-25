@@ -1,82 +1,114 @@
-import { useMemo, useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react";
 
-interface BottomBarProps {
-  disabled?: boolean
+type Props = {
+  actionMessage?: string;
+  currentTick?: number;
+  totalTicks?: number;
+  onSeek?: (tick: number) => void;
+  scrubDisabled?: boolean;
+};
+
+export function BottomBar({
+  actionMessage = "Awaiting simulation start...",
+  currentTick = 0,
+  totalTicks = 3600,
+  onSeek,
+  scrubDisabled = true,
+}: Props) {
+  return (
+    <div className="border-t border-border-soft bg-white/40 px-6 py-4 flex items-center gap-6 min-h-[80px]">
+      <div className="flex items-center gap-3 flex-[3]">
+        <span className="w-2.5 h-2.5 rounded-full bg-status-green animate-pulse shrink-0" />
+        <span
+          className="text-text-primary truncate"
+          style={{ fontFamily: "Georgia, serif", fontSize: "18px" }}
+        >
+          {actionMessage}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 flex-[2]">
+        <ScrubBar
+          current={currentTick}
+          total={totalTicks}
+          disabled={scrubDisabled}
+          onSeek={onSeek}
+        />
+        <span className="font-mono text-xs text-text-secondary tabular-nums">
+          {scrubDisabled ? "— / —" : `${formatHHMMSS(currentTick)} / ${formatHHMMSS(totalTicks)}`}
+        </span>
+      </div>
+    </div>
+  );
 }
 
-export function BottomBar({ disabled = true }: BottomBarProps) {
-  const [progress, setProgress] = useState(0)
-  const trackRef = useRef<HTMLDivElement | null>(null)
-  const dragging = useRef(false)
+function ScrubBar({
+  current,
+  total,
+  disabled,
+  onSeek,
+}: {
+  current: number;
+  total: number;
+  disabled: boolean;
+  onSeek?: (tick: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const pct = total > 0 ? Math.min(100, Math.max(0, (current / total) * 100)) : 0;
 
-  const filledWidth = useMemo(() => `${progress * 100}%`, [progress])
+  const seekFromEvent = useCallback(
+    (clientX: number) => {
+      if (disabled || !onSeek || !trackRef.current) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      const ratio = (clientX - rect.left) / rect.width;
+      const clamped = Math.min(1, Math.max(0, ratio));
+      onSeek(clamped * total);
+    },
+    [disabled, onSeek, total],
+  );
 
-  function updateFromEvent(clientX: number) {
-    if (disabled || !trackRef.current) return
-    const rect = trackRef.current.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-    setProgress(ratio)
-  }
-
-  function onMouseDown(event: MouseEvent<HTMLDivElement>) {
-    if (disabled) return
-    dragging.current = true
-    updateFromEvent(event.clientX)
-  }
-
-  function onMouseMove(event: MouseEvent<HTMLDivElement>) {
-    if (!dragging.current) return
-    updateFromEvent(event.clientX)
-  }
-
-  function onMouseUp() {
-    dragging.current = false
-  }
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => seekFromEvent(e.clientX);
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging, seekFromEvent]);
 
   return (
-    <footer className="h-[80px] bg-bg-white border-t border-border-soft px-6 flex items-center justify-between gap-8">
-      <div className="w-[60%] flex items-center gap-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-status-green animate-pulse" />
-        <span className="font-mono text-[20px] text-text-primary whitespace-nowrap overflow-hidden text-ellipsis">
-          Awaiting simulation start...
-        </span>
-      </div>
-      <div className="w-[40%] flex items-center gap-3">
-        <div
-          ref={trackRef}
-          role="presentation"
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
-          className={`relative h-6 flex-1 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-        >
-          <div className="absolute top-1/2 left-0 h-1.5 w-full -translate-y-1/2 rounded-full bg-pallet-empty" />
-          <div
-            className={`absolute top-1/2 left-0 h-1.5 -translate-y-1/2 rounded-full ${
-              disabled ? 'bg-border-soft' : 'bg-accent'
-            }`}
-            style={{ width: filledWidth }}
-          />
-          <div
-            className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 -translate-x-1/2 rounded-full border border-border-soft ${
-              disabled ? 'bg-slot-empty' : 'bg-bg-white'
-            }`}
-            style={{ left: filledWidth }}
-          />
-        </div>
-        <span className="font-mono text-sm text-text-secondary">
-          {disabled ? '— / 10:00' : `${formatTime(progress * 600)} / 10:00`}
-        </span>
-      </div>
-    </footer>
-  )
+    <div
+      ref={trackRef}
+      onMouseDown={(e) => {
+        if (disabled) return;
+        seekFromEvent(e.clientX);
+        setDragging(true);
+      }}
+      className={
+        "flex-1 h-1.5 rounded-full bg-pallet-empty relative " +
+        (disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer")
+      }
+    >
+      <div
+        className="absolute top-0 left-0 h-full rounded-full bg-accent"
+        style={{ width: `${pct}%` }}
+      />
+      <div
+        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-accent shadow-sm"
+        style={{ left: `${pct}%` }}
+      />
+    </div>
+  );
 }
 
-function formatTime(secondsTotal: number) {
-  const seconds = Math.floor(secondsTotal)
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+function formatHHMMSS(secondsRaw: number): string {
+  const seconds = Math.max(0, Math.floor(secondsRaw));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((value) => value.toString().padStart(2, "0")).join(":");
 }

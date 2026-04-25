@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import pi, sin
 from typing import List, Optional
 
 from models import Box, Position, Shuttle, ShuttleTask, ShuttleTaskType, Silo, SimulationConfig
@@ -14,6 +15,9 @@ class ShuttleStepResult:
     remaining_seconds: int
     task_type: Optional[str]
     shipped_destination: Optional[str]
+    completed_box_id: Optional[str]
+    completed_destination: Optional[str]
+    current_x: int
     notes: str
 
 
@@ -31,6 +35,8 @@ def step_shuttle(
     """
     started_task = False
     finished_task = False
+    completed_box_id: Optional[str] = None
+    completed_destination: Optional[str] = None
 
     # If shuttle is idle and has pending work, start exactly one task.
     if shuttle.active_task is None and shuttle.queue:
@@ -50,16 +56,22 @@ def step_shuttle(
             remaining_seconds=0,
             task_type=None,
             shipped_destination=None,
+            completed_box_id=None,
+            completed_destination=None,
+            current_x=shuttle.current_x,
             notes="idle",
         )
 
     # Consume exactly one simulation second from task duration.
     if shuttle.active_task.remaining_seconds > 0:
         shuttle.active_task.remaining_seconds -= 1
+        shuttle.current_x = _estimate_shuttle_x(shuttle.active_task)
 
     # When remaining time reaches zero, apply end-of-task state transitions.
     if shuttle.active_task.remaining_seconds == 0:
         completed_task = shuttle.active_task
+        completed_destination = _task_destination(completed_task, silo)
+        completed_box_id = _task_box_id(completed_task, silo)
         _finalize_task_effects(shuttle, silo)
         shuttle.active_task = None
         shuttle.is_idle = True
@@ -72,6 +84,9 @@ def step_shuttle(
             remaining_seconds=0,
             task_type=completed_task.task_type.value,
             shipped_destination=_get_shipped_destination(completed_task),
+            completed_box_id=completed_box_id,
+            completed_destination=completed_destination,
+            current_x=shuttle.current_x,
             notes="task_completed",
         )
 
@@ -82,6 +97,9 @@ def step_shuttle(
         remaining_seconds=shuttle.active_task.remaining_seconds,
         task_type=shuttle.active_task.task_type.value,
         shipped_destination=None,
+        completed_box_id=None,
+        completed_destination=None,
+        current_x=shuttle.current_x,
         notes="task_in_progress",
     )
 
@@ -108,6 +126,7 @@ def _initialize_task_duration(shuttle: Shuttle, config: SimulationConfig) -> Non
         task=task,
         handling_seconds=config.handling_seconds,
     )
+    task.total_seconds = task.remaining_seconds
 
 
 def _estimate_task_seconds(
@@ -210,4 +229,48 @@ def _get_task_primary_carry(task: ShuttleTask) -> Optional[Box]:
     if task.task_type == ShuttleTaskType.OUTBOUND_ONLY:
         return task.outbound_box
     return None
+
+
+def _task_destination(task: ShuttleTask, silo: Silo) -> Optional[str]:
+    if task.inbound_box is not None and task.task_type == ShuttleTaskType.INBOUND_CROSS_DOCK:
+        return task.inbound_box.destination
+    if task.outbound_box is not None:
+        return task.outbound_box.destination
+    if task.pick_slot is not None:
+        pick_slot = silo.get_slot(task.pick_slot)
+        if pick_slot is not None and pick_slot.box is not None:
+            return pick_slot.box.destination
+    return None
+
+
+def _task_box_id(task: ShuttleTask, silo: Silo) -> Optional[str]:
+    if task.inbound_box is not None and task.task_type == ShuttleTaskType.INBOUND_CROSS_DOCK:
+        return task.inbound_box.box_id
+    if task.outbound_box is not None:
+        return task.outbound_box.box_id
+    if task.pick_slot is not None:
+        pick_slot = silo.get_slot(task.pick_slot)
+        if pick_slot is not None and pick_slot.box is not None:
+            return pick_slot.box.box_id
+    return None
+
+
+def _estimate_shuttle_x(task: ShuttleTask) -> int:
+    if task.total_seconds <= 0:
+        return 0
+    if task.task_type == ShuttleTaskType.INBOUND_CROSS_DOCK:
+        return 0
+
+    target_x = 0
+    if task.store_slot is not None:
+        target_x = max(target_x, task.store_slot[2])
+    if task.pick_slot is not None:
+        target_x = max(target_x, task.pick_slot[2])
+    if target_x <= 0:
+        return 0
+
+    elapsed = task.total_seconds - task.remaining_seconds
+    ratio = min(1.0, max(0.0, elapsed / task.total_seconds))
+    # Smooth out-and-back motion so UI can animate meaningful X movement.
+    return int(round(target_x * sin(pi * ratio)))
 

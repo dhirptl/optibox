@@ -1,25 +1,22 @@
-import { useEffect, useState } from 'react'
-import { healthCheck } from '../lib/api'
+import { useEffect, useState } from "react";
+import { healthCheck } from "../lib/api";
 
 export function useBackendHealth() {
-  const [isHealthy, setIsHealthy] = useState(true)
+  const [healthy, setHealthy] = useState<boolean | null>(null);
 
   useEffect(() => {
-    let mounted = true
-
-    async function check() {
-      const ok = await healthCheck()
-      if (mounted) setIsHealthy(ok)
-    }
-
-    check()
-    const timer = window.setInterval(check, 5000)
-
+    let alive = true;
+    const check = async () => {
+      const ok = await healthCheck();
+      if (alive) setHealthy(ok);
+    };
+    check();
+    const id = setInterval(check, 5000);
     return () => {
-      mounted = false
-      window.clearInterval(timer)
-    }
-  }, [])
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
 
-  return isHealthy
+  return healthy;
 }

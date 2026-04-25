@@ -1,73 +1,75 @@
-import { useEffect, useRef } from 'react'
-import type { SelectedBoxState } from '../hooks/useSelectedBox'
+import type { Slot } from "../lib/types";
 
-interface BoxTooltipProps {
-  selected: SelectedBoxState
-  onClose: () => void
-}
+type Props = {
+  slot: Slot | null;
+  onClose: () => void;
+};
 
-export function BoxTooltip({ selected, onClose }: BoxTooltipProps) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const { slot } = selected
-
-  useEffect(() => {
-    function onDocumentMouseDown(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) onClose()
-    }
-    window.addEventListener('mousedown', onDocumentMouseDown)
-    return () => window.removeEventListener('mousedown', onDocumentMouseDown)
-  }, [onClose])
-
-  if (!slot.box) return null
-
-  const id = slot.box.box_id
-  const prefix = id.slice(0, 7)
-  const destination = id.slice(7, 15)
-  const suffix = id.slice(15)
+export function BoxTooltip({ slot, onClose }: Props) {
+  if (!slot || !slot.box) return null;
+  const { box, position } = slot;
+  const positionLabel =
+    `Aisle ${position.aisle} / Side ${position.side.toString().padStart(2, "0")} ` +
+    `/ X=${position.x} / Y=${position.y} / Z=${position.z}`;
 
   return (
     <div
-      ref={ref}
-      className="fixed z-30 w-[320px] rounded-xl bg-bg-white border border-border-soft shadow-lg p-4"
-      style={{ left: selected.x + 10, top: selected.y + 10 }}
+      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg border border-border-soft shadow-lg px-5 py-4 min-w-[340px]"
+      onClick={(e) => e.stopPropagation()}
     >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-2 right-2 text-text-secondary"
-      >
-        ×
-      </button>
-      <div className="font-mono text-sm break-all mb-3">
-        {prefix}
-        <span className="bg-pallet-empty rounded px-1">{destination}</span>
-        {suffix}
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <span className="text-[10px] tracking-widest text-text-secondary">
+          BOX
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="text-text-secondary hover:text-text-primary text-sm leading-none"
+        >
+          ×
+        </button>
       </div>
-      <InfoRow label="Destination" value={slot.box.destination} mono />
-      <InfoRow
-        label="Position"
-        value={`Aisle ${slot.position.aisle} / Side ${slot.position.side
-          .toString()
-          .padStart(2, '0')} / X=${slot.position.x} / Y=${slot.position.y} / Z=${slot.position.z}`}
-      />
-      <InfoRow label="Loaded at" value="--:--:--" mono />
+
+      <div className="font-mono text-sm text-text-primary tracking-tight break-all mb-3">
+        <span>{box.box_id.slice(0, 7)}</span>
+        <span className="bg-pallet-empty text-accent font-semibold px-0.5 rounded-sm">
+          {box.box_id.slice(7, 15)}
+        </span>
+        <span>{box.box_id.slice(15, 20)}</span>
+      </div>
+
+      <Row label="Destination" value={box.destination} mono />
+      <Row label="Position" value={positionLabel} />
+      <Row label="Loaded at" value="--:--:--" mono muted />
     </div>
-  )
+  );
 }
 
-function InfoRow({
+function Row({
   label,
   value,
   mono,
+  muted,
 }: {
-  label: string
-  value: string
-  mono?: boolean
+  label: string;
+  value: string;
+  mono?: boolean;
+  muted?: boolean;
 }) {
   return (
-    <div className="text-sm mb-1.5">
-      <span className="text-text-secondary mr-2">{label}:</span>
-      <span className={mono ? 'font-mono' : ''}>{value}</span>
+    <div className="flex justify-between items-baseline gap-4 py-1 text-xs">
+      <span className="text-text-secondary tracking-wide uppercase text-[10px]">
+        {label}
+      </span>
+      <span
+        className={
+          (mono ? "font-mono " : "") +
+          (muted ? "text-text-secondary" : "text-text-primary")
+        }
+      >
+        {value}
+      </span>
     </div>
-  )
+  );
 }

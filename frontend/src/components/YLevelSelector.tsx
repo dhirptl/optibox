@@ -1,33 +1,46 @@
-interface YLevelSelectorProps {
-  y: number
-  setY: (level: number) => void
-}
+type Props = {
+  y: number;
+  setY: (y: number) => void;
+};
 
-export function YLevelSelector({ y, setY }: YLevelSelectorProps) {
+const Y_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+
+export function YLevelSelector({ y, setY }: Props) {
   return (
-    <section className="h-[50px] bg-bg-white border-b border-border-soft flex items-center justify-center gap-6">
-      <span className="text-[10px] uppercase tracking-ui text-text-secondary">
-        Viewing level
+    <div className="flex items-center justify-center gap-3 py-3 border-b border-border-soft">
+      <span className="text-[10px] tracking-widest text-text-secondary">
+        VIEWING LEVEL
       </span>
-      <div className="flex gap-2">
-        {Array.from({ length: 8 }, (_, index) => index + 1).map((level) => {
-          const active = level === y
+      <div className="flex items-center gap-1">
+        {Y_LEVELS.map((level) => {
+          const active = level === y;
+          const enabled = level === 1;
           return (
             <button
               key={level}
               type="button"
-              onClick={() => setY(level)}
-              className={`h-8 px-3 rounded-full text-xs font-medium ${
-                active
-                  ? 'bg-accent text-white'
-                  : 'bg-pallet-empty text-text-secondary'
-              }`}
+              disabled={!enabled}
+              onClick={() => enabled && setY(level)}
+              title={
+                enabled
+                  ? undefined
+                  : "Visualization limited to Y=1 for demo clarity"
+              }
+              className={
+                "min-w-[44px] px-2 py-1 rounded-full text-xs font-mono " +
+                (active
+                  ? "bg-accent text-white"
+                  : "bg-pallet-empty text-text-secondary") +
+                (enabled
+                  ? " hover:opacity-90 cursor-pointer"
+                  : " opacity-40 cursor-not-allowed")
+              }
             >
-              Y={level}
+              {`Y=${level}`}
             </button>
-          )
+          );
         })}
       </div>
-    </section>
-  )
+    </div>
+  );
 }

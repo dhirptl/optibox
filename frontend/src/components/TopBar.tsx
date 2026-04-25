@@ -1,75 +1,140 @@
-interface TopBarProps {
-  onReset: () => Promise<void> | void
-  resetLoading?: boolean
-}
+import { useState } from "react";
+import { resetSilo } from "../lib/api";
+import type { SimulationMetrics } from "../lib/types";
 
-const SPEEDS = ['1×', '2×', '5×', '10×', '30×']
+type Props = {
+  onAfterReset: () => void;
+  currentTick: number;
+  totalTicks: number;
+  finalMetrics: SimulationMetrics;
+  activeSpeed: number;
+  playing: boolean;
+  controlsDisabled: boolean;
+  onSelectSpeed: (speed: number) => void;
+  onTogglePlay: () => void;
+};
 
-export function TopBar({ onReset, resetLoading = false }: TopBarProps) {
+const SPEED_OPTIONS = [1, 2, 5, 10, 30] as const;
+
+export function TopBar({
+  onAfterReset,
+  currentTick,
+  totalTicks,
+  finalMetrics,
+  activeSpeed,
+  playing,
+  controlsDisabled,
+  onSelectSpeed,
+  onTogglePlay,
+}: Props) {
+  const [resetting, setResetting] = useState(false);
+  const isFinalTick = totalTicks > 0 && currentTick >= totalTicks;
+  const fullPalletsValue = isFinalTick
+    ? `${finalMetrics.full_pallets_out_of_8} / 8`
+    : "-- / 8";
+  const palletsCompletedValue = isFinalTick
+    ? String(finalMetrics.pallets_completed)
+    : "--";
+  const avgTimeValue = isFinalTick
+    ? `${finalMetrics.avg_time_per_pallet.toFixed(2)}s`
+    : "--s";
+
+  async function handleReset() {
+    setResetting(true);
+    try {
+      await resetSilo();
+      onAfterReset();
+    } catch {
+      // Phase 1: surfaced via the offline banner; silently noop here.
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
-    <header className="h-[70px] bg-bg-white border-b border-border-soft px-6 flex items-center justify-between gap-6">
-      <div className="min-w-[220px]">
-        <h1 className="m-0 text-[20px] font-bold tracking-[0.08em] leading-tight">
+    <header className="bg-white/60 border-b border-border-soft pl-16 pr-8 py-4 flex items-center gap-8">
+      <div className="flex flex-col leading-tight">
+        <span className="font-sans font-bold tracking-wider text-text-primary text-xl">
           OPTIBOX
-        </h1>
-        <p className="m-0 text-[10px] uppercase tracking-ui text-text-secondary">
+        </span>
+        <span className="text-text-secondary text-xs">
           warehouse flow simulator
-        </p>
+        </span>
       </div>
 
-      <div className="flex-1 flex items-end justify-center gap-10">
-        <Metric value="0%" label="FULL PALLETS" />
-        <Metric value="0" label="PALLETS COMPLETED" />
-        <Metric value="--" label="AVG TIME / PALLET" />
+      <div className="flex items-center gap-10 ml-24 mt-3">
+        <Metric label="FULL PALLETS" value={fullPalletsValue} />
+        <Metric label="PALLETS COMPLETED" value={palletsCompletedValue} />
+        <Metric label="AVG TIME / PALLET" value={avgTimeValue} />
       </div>
 
-      <div className="flex items-center gap-2 min-w-[390px] justify-end">
-        <span className="font-mono text-[14px] text-text-primary mr-2">
-          00:00:00 / 10:00:00
+      <div className="ml-auto flex items-center gap-4">
+        <span className="font-mono text-sm text-text-secondary tabular-nums">
+          {`${formatHHMMSS(currentTick)} / ${formatHHMMSS(totalTicks)}`}
         </span>
 
-        {SPEEDS.map((speed, index) => (
-          <button
-            key={speed}
-            type="button"
-            disabled
-            className={`px-2.5 h-7 rounded-full text-xs border border-border-soft ${
-              index === 0
-                ? 'bg-accent text-white opacity-60'
-                : 'bg-pallet-empty text-text-secondary opacity-60'
-            }`}
-          >
-            {speed}
-          </button>
-        ))}
+        <div className="flex items-center gap-1">
+          {SPEED_OPTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onSelectSpeed(s)}
+              disabled={controlsDisabled}
+              className={
+                "px-2.5 py-1 rounded-full text-xs font-mono transition-colors " +
+                (s === activeSpeed
+                  ? "bg-accent text-white"
+                  : "bg-pallet-empty text-text-secondary") +
+                (controlsDisabled ? " opacity-50 cursor-not-allowed" : "")
+              }
+            >
+              {s}×
+            </button>
+          ))}
+        </div>
 
         <button
           type="button"
-          disabled
-          className="h-9 w-9 rounded-full bg-accent text-white opacity-60"
+          onClick={onTogglePlay}
+          disabled={controlsDisabled}
+          className="px-3 py-1.5 rounded-full text-xs bg-pallet-empty text-text-secondary hover:bg-[#e2dbcd] disabled:opacity-50"
         >
-          ▶
+          {playing ? "❚❚ Pause" : "▶ Play"}
         </button>
+
         <button
           type="button"
-          onClick={() => void onReset()}
-          disabled={resetLoading}
-          className="h-9 px-4 rounded-full border border-border-soft bg-bg-white text-[12px] disabled:opacity-50"
+          onClick={handleReset}
+          disabled={resetting}
+          className="px-3 py-1.5 rounded-full text-xs border border-border-soft text-text-primary hover:bg-pallet-empty disabled:opacity-50"
         >
-          Reset
+          {resetting ? "…" : "Reset"}
         </button>
       </div>
     </header>
-  )
+  );
 }
 
-function Metric({ value, label }: { value: string; label: string }) {
+function formatHHMMSS(secondsRaw: number): string {
+  const seconds = Math.max(0, Math.floor(secondsRaw));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((value) => value.toString().padStart(2, "0")).join(":");
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="text-center">
-      <div className="text-[36px] leading-none font-semibold">{value}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-ui text-text-secondary">
+    <div className="flex flex-col leading-none">
+      <span className="text-[10px] tracking-widest text-text-secondary mb-1">
         {label}
-      </div>
+      </span>
+      <span
+        className="font-sans font-semibold text-text-primary tabular-nums"
+        style={{ fontSize: "36px" }}
+      >
+        {value}
+      </span>
     </div>
-  )
+  );
 }

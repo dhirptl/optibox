@@ -1,37 +1,24 @@
-import { useState } from 'react'
-import { randomizeSilo, resetSilo } from '../lib/api'
+import { useCallback, useState } from "react";
 
-export function useApi() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function useApi<T, A extends unknown[]>(fn: (...args: A) => Promise<T>) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function runRandomize(numBoxes: number) {
-    setLoading(true)
-    setError(null)
-    try {
-      return await randomizeSilo(numBoxes)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown API error'
-      setError(message)
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }
+  const call = useCallback(
+    async (...args: A): Promise<T | undefined> => {
+      setLoading(true);
+      setError(null);
+      try {
+        return await fn(...args);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return undefined;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fn],
+  );
 
-  async function runReset() {
-    setLoading(true)
-    setError(null)
-    try {
-      return await resetSilo()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown API error'
-      setError(message)
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return { loading, error, setError, runRandomize, runReset }
+  return { call, loading, error };
 }

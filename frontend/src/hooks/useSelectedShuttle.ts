@@ -1,14 +1,11 @@
-import { useState } from 'react'
-
-export interface SelectedShuttle {
-  aisle: number
-  y: number
-  current_x: number
-}
+import { useCallback, useState } from "react";
 
 export function useSelectedShuttle() {
-  const [selectedShuttle, setSelectedShuttle] = useState<SelectedShuttle | null>(
-    null,
-  )
-  return { selectedShuttle, setSelectedShuttle }
+  const [selectedShuttle, setSelectedShuttle] = useState<number | null>(null);
+  const selectShuttle = useCallback(
+    (id: number) => setSelectedShuttle(id),
+    [],
+  );
+  const clearShuttle = useCallback(() => setSelectedShuttle(null), []);
+  return { selectedShuttle, selectShuttle, clearShuttle };
 }

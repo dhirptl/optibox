@@ -1,154 +1,228 @@
-import { formatPositionString } from '../lib/parsing'
-import type { Slot, SiloState } from '../lib/types'
-import type { SelectedShuttle } from '../hooks/useSelectedShuttle'
+import { formatPositionString } from "../lib/parsing";
+import type { SiloState, Slot } from "../lib/types";
 
-interface SiloCanvasProps {
-  silo: SiloState
-  y: number
-  selectedShuttle: SelectedShuttle | null
-  onSelectBox: (slot: Slot, x: number, y: number) => void
-  onSelectShuttle: (shuttle: SelectedShuttle) => void
-  onClearSelection: () => void
-}
+type Props = {
+  silo: SiloState;
+  y: number;
+  shuttleXByAisle?: Record<number, number>;
+  selectedShuttle: number | null;
+  onSelectSlot: (slot: Slot) => void;
+  onSelectShuttle: (id: number) => void;
+  onClearSelection: () => void;
+};
 
-const X_TICKS = [0, 10, 20, 30, 40, 50, 60]
+const AISLES = [1, 2, 3, 4] as const;
+const X_RANGE = Array.from({ length: 60 }, (_, i) => i + 1);
+const RULER_TICKS = [1, 10, 20, 30, 40, 50, 60];
+
+const BOX_PX = 14;
+const ROW_GAP_PX = 1;
+
+const gridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: `repeat(60, ${BOX_PX}px)`,
+  columnGap: `${ROW_GAP_PX}px`,
+};
 
 export function SiloCanvas({
   silo,
   y,
+  shuttleXByAisle = {},
   selectedShuttle,
-  onSelectBox,
+  onSelectSlot,
   onSelectShuttle,
   onClearSelection,
-}: SiloCanvasProps) {
+}: Props) {
   return (
-    <section
-      className="h-full overflow-auto p-6"
-      onClick={() => onClearSelection()}
-      role="presentation"
+    <div
+      className="flex flex-col items-center gap-6 py-6"
+      onClick={onClearSelection}
     >
-      <div className="mx-auto max-w-[1240px] space-y-6">
-        {Array.from({ length: 4 }, (_, i) => i + 1).map((aisle) => (
-          <AisleStrip
-            key={aisle}
-            aisle={aisle}
-            y={y}
-            silo={silo}
-            selectedShuttle={selectedShuttle}
-            onSelectBox={onSelectBox}
-            onSelectShuttle={onSelectShuttle}
-          />
-        ))}
-      </div>
-    </section>
-  )
+      {AISLES.map((aisle) => (
+        <AisleStrip
+          key={aisle}
+          aisle={aisle}
+          y={y}
+          silo={silo}
+          shuttleX={shuttleXByAisle[aisle] ?? 0}
+          shuttleSelected={selectedShuttle === aisle}
+          onSelectSlot={onSelectSlot}
+          onSelectShuttle={onSelectShuttle}
+        />
+      ))}
+    </div>
+  );
 }
 
 function AisleStrip({
   aisle,
   y,
   silo,
-  selectedShuttle,
-  onSelectBox,
+  shuttleX,
+  shuttleSelected,
+  onSelectSlot,
   onSelectShuttle,
 }: {
-  aisle: number
-  y: number
-  silo: SiloState
-  selectedShuttle: SelectedShuttle | null
-  onSelectBox: (slot: Slot, x: number, y: number) => void
-  onSelectShuttle: (shuttle: SelectedShuttle) => void
+  aisle: number;
+  y: number;
+  silo: SiloState;
+  shuttleX: number;
+  shuttleSelected: boolean;
+  onSelectSlot: (slot: Slot) => void;
+  onSelectShuttle: (id: number) => void;
 }) {
-  const shuttleX = 0
-  const selected =
-    selectedShuttle?.aisle === aisle && selectedShuttle?.y === y
-
   return (
-    <div className="grid grid-cols-[88px_1fr] items-center gap-3">
-      <div className="text-[11px] font-medium tracking-ui text-text-secondary">
-        AISLE {aisle.toString().padStart(2, '0')}
+    <div
+      className="flex items-stretch gap-3"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="w-20 flex items-center justify-end">
+        <span className="text-[10px] tracking-widest text-text-secondary font-mono">
+          AISLE {aisle.toString().padStart(2, "0")}
+        </span>
       </div>
 
-      <div className="rounded-xl border border-border-soft bg-bg-white p-3">
-        <SlotRow aisle={aisle} side={1} y={y} silo={silo} onSelectBox={onSelectBox} />
-        <div className="h-5 bg-slot-empty rounded mt-1 mb-1 relative">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelectShuttle({ aisle, y, current_x: shuttleX })
-            }}
-            className={`absolute top-1/2 -translate-y-1/2 h-2 w-3 rounded-sm ${
-              selected ? 'bg-box-active ring-2 ring-box-active/30' : 'bg-shuttle'
-            }`}
-            style={{ left: `calc(${(shuttleX / 60) * 100}% + 2px)` }}
-          />
-        </div>
-        <SlotRow aisle={aisle} side={2} y={y} silo={silo} onSelectBox={onSelectBox} />
-
-        <div className="relative h-5 mt-2">
-          {X_TICKS.map((x) => (
-            <div
-              key={x}
-              className="absolute -translate-x-1/2 text-[10px] font-mono text-text-secondary"
-              style={{ left: `${(x / 60) * 100}%` }}
-            >
-              X={x}
-            </div>
-          ))}
-        </div>
+      <div className="flex flex-col gap-1 bg-white/40 px-3 py-3 rounded-md border border-border-soft">
+        <Row aisle={aisle} side={1} y={y} silo={silo} onSelectSlot={onSelectSlot} />
+        <Corridor
+          aisle={aisle}
+          shuttleX={shuttleX}
+          shuttleSelected={shuttleSelected}
+          onSelectShuttle={onSelectShuttle}
+        />
+        <Row aisle={aisle} side={2} y={y} silo={silo} onSelectSlot={onSelectSlot} />
+        <Ruler />
       </div>
     </div>
-  )
+  );
 }
 
-function SlotRow({
+function Row({
   aisle,
   side,
   y,
   silo,
-  onSelectBox,
+  onSelectSlot,
 }: {
-  aisle: number
-  side: 1 | 2
-  y: number
-  silo: SiloState
-  onSelectBox: (slot: Slot, x: number, y: number) => void
+  aisle: number;
+  side: 1 | 2;
+  y: number;
+  silo: SiloState;
+  onSelectSlot: (slot: Slot) => void;
 }) {
+  // Side 1 row: Z=2 on top (outer/wall), Z=1 on bottom (closer to corridor below).
+  // Side 2 row: Z=1 on top (closer to corridor above), Z=2 on bottom (outer/wall).
+  const topZ: 1 | 2 = side === 1 ? 2 : 1;
+  const bottomZ: 1 | 2 = side === 1 ? 1 : 2;
+
   return (
-    <div
-      className="grid gap-x-[2px]"
-      style={{ gridTemplateColumns: 'repeat(60, minmax(0, 1fr))' }}
-    >
-      {Array.from({ length: 60 }, (_, index) => index + 1).map((x) => {
-        const zOrder: (1 | 2)[] = side === 1 ? [2, 1] : [1, 2]
+    <div style={gridStyle}>
+      {X_RANGE.map((x) => {
+        const topKey = formatPositionString({ aisle, side, x, y, z: topZ });
+        const bottomKey = formatPositionString({ aisle, side, x, y, z: bottomZ });
+        const topSlot = silo.get(topKey);
+        const bottomSlot = silo.get(bottomKey);
         return (
-          <div key={`${side}-${x}`} className="flex gap-[1px]">
-            {zOrder.map((z) => {
-              const code = formatPositionString({ aisle, side, x, y, z })
-              const slot = silo.get(code) ?? {
-                position: { aisle, side, x, y, z },
-                box: null,
-              }
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  className={`h-3 w-3 rounded-[2px] border ${
-                    slot.box
-                      ? 'bg-box-resting border-box-resting'
-                      : 'bg-transparent border-slot-empty'
-                  }`}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onSelectBox(slot, event.clientX, event.clientY)
-                  }}
-                />
-              )
-            })}
+          <div
+            key={x}
+            className="flex flex-col"
+            style={{ rowGap: `${ROW_GAP_PX}px` }}
+          >
+            <BoxSquare slot={topSlot} onSelectSlot={onSelectSlot} />
+            <BoxSquare slot={bottomSlot} onSelectSlot={onSelectSlot} />
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
+}
+
+function BoxSquare({
+  slot,
+  onSelectSlot,
+}: {
+  slot: Slot | undefined;
+  onSelectSlot: (slot: Slot) => void;
+}) {
+  const filled = slot?.box != null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (slot && slot.box) onSelectSlot(slot);
+      }}
+      disabled={!filled}
+      style={{ width: `${BOX_PX}px`, height: `${BOX_PX}px` }}
+      className={
+        "rounded-[2px] " +
+        (filled
+          ? "bg-box-resting hover:bg-box-active transition-colors"
+          : "border border-slot-empty bg-transparent cursor-default")
+      }
+      aria-label={filled ? `Box ${slot!.box!.box_id}` : "Empty slot"}
+    />
+  );
+}
+
+function Corridor({
+  aisle,
+  shuttleX,
+  shuttleSelected,
+  onSelectShuttle,
+}: {
+  aisle: number;
+  shuttleX: number;
+  shuttleSelected: boolean;
+  onSelectShuttle: (id: number) => void;
+}) {
+  const normalizedX = Math.min(60, Math.max(0, shuttleX));
+  const shuttleLeftPct = (normalizedX / 60) * 100;
+
+  return (
+    <div
+      style={{ ...gridStyle, height: "10px" }}
+      className="bg-pallet-empty rounded-[2px] relative"
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectShuttle(aisle);
+        }}
+        aria-label={`Shuttle aisle ${aisle}`}
+        style={{
+          position: "absolute",
+          left: `${shuttleLeftPct}%`,
+          top: "1px",
+          width: "12px",
+          height: "8px",
+          transform: "translateX(-50%)",
+        }}
+        className={
+          "bg-shuttle rounded-[2px] " +
+          (shuttleSelected ? "outline outline-2 outline-accent" : "")
+        }
+      />
+    </div>
+  );
+}
+
+function Ruler() {
+  return (
+    <div
+      style={gridStyle}
+      className="text-[9px] font-mono text-text-secondary mt-1 select-none"
+    >
+      {RULER_TICKS.map((tick) => (
+        <span
+          key={tick}
+          style={{ gridColumn: tick, gridRow: 1 }}
+          className="text-center"
+        >
+          {tick}
+        </span>
+      ))}
+    </div>
+  );
 }

@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optibox.local/schemas/simulation_log.schema.json",
+  "title": "OptiboxSimulationLog",
+  "type": "object",
+  "required": ["duration_seconds", "metrics", "final_metrics", "events", "timeline"],
+  "properties": {
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["full_pallets_out_of_8", "pallets_completed", "avg_time_per_pallet"],
+      "properties": {
+        "full_pallets_out_of_8": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "pallets_completed": { "type": "integer", "minimum": 0 },
+        "avg_time_per_pallet": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "final_metrics": {
+      "type": "object",
+      "required": ["full_pallets_out_of_8", "pallets_completed", "avg_time_per_pallet"],
+      "properties": {
+        "full_pallets_out_of_8": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "pallets_completed": { "type": "integer", "minimum": 0 },
+        "avg_time_per_pallet": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "timeline": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tick" }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": ["t", "type", "message"],
+      "properties": {
+        "t": { "type": "integer", "minimum": 0 },
+        "type": { "type": "string" },
+        "message": { "type": "string" },
+        "destination": { "type": ["string", "null"] },
+        "shuttle_id": { "type": ["string", "null"] },
+        "task_type": { "type": ["string", "null"] },
+        "box_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "tick": {
+      "type": "object",
+      "required": ["t", "metrics", "pallet_slots", "shuttles", "grid_changes", "action_message", "event_count"],
+      "properties": {
+        "t": { "type": "integer", "minimum": 0 },
+        "metrics": {
+          "type": "object",
+          "required": ["full_pallets_out_of_8", "pallets_completed", "avg_time_per_pallet"],
+          "properties": {
+            "full_pallets_out_of_8": { "type": "integer", "minimum": 0, "maximum": 8 },
+            "pallets_completed": { "type": "integer", "minimum": 0 },
+            "avg_time_per_pallet": { "type": "number", "minimum": 0 }
+          }
+        },
+        "pallet_slots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["slot_id", "robot_id", "destination", "filled", "capacity"],
+            "properties": {
+              "slot_id": { "type": "integer", "minimum": 1, "maximum": 4 },
+              "robot_id": { "type": "integer", "enum": [1, 2] },
+              "destination": { "type": ["string", "null"] },
+              "filled": { "type": "integer", "minimum": 0 },
+              "capacity": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "shuttles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["shuttle_id", "aisle", "y", "x", "task_type"],
+            "properties": {
+              "shuttle_id": { "type": "string" },
+              "aisle": { "type": "integer", "minimum": 1 },
+              "y": { "type": "integer", "minimum": 1 },
+              "x": { "type": "integer", "minimum": 0 },
+              "task_type": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "grid_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["position", "before", "after"],
+            "properties": {
+              "position": { "type": "string", "pattern": "^[0-9]{11}$" },
+              "before": { "$ref": "#/$defs/boxOrNull" },
+              "after": { "$ref": "#/$defs/boxOrNull" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "action_message": { "type": "string" },
+        "event_count": { "type": "integer", "minimum": 0 },
+        "final_metrics": {
+          "type": "object",
+          "required": ["full_pallets_out_of_8", "pallets_completed", "avg_time_per_pallet"],
+          "properties": {
+            "full_pallets_out_of_8": { "type": "integer", "minimum": 0, "maximum": 8 },
+            "pallets_completed": { "type": "integer", "minimum": 0 },
+            "avg_time_per_pallet": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "boxOrNull": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["box_id", "source", "destination", "bulk"],
+          "properties": {
+            "box_id": { "type": "string", "pattern": "^[0-9]{20}$" },
+            "source": { "type": "string", "pattern": "^[0-9]{7}$" },
+            "destination": { "type": "string", "pattern": "^[0-9]{8}$" },
+            "bulk": { "type": "string", "pattern": "^[0-9]{5}$" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

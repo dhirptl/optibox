@@ -122,6 +122,7 @@ def run_tick_batch(
     # Phase 3: run one second of shuttle execution.
     results = step_all_shuttles(state.shuttles, state.silo, state.config)
     _update_shipping_counters(state, results)
+    _apply_completed_shipments(state, results)
 
     # Phase 4: advance global time exactly once.
     state.t += 1
@@ -378,4 +379,22 @@ def _update_shipping_counters(
 
 def get_shipped_pallets_total(state: SimulationState) -> int:
     return state.shipped_pallets_total
+
+
+def _apply_completed_shipments(
+    state: SimulationState,
+    results: List[ShuttleStepResult],
+) -> None:
+    for result in results:
+        if not result.finished_task:
+            continue
+        destination = result.shipped_destination
+        if destination is None:
+            continue
+        pallet = state.dispatcher.active_pallets.get(destination)
+        if pallet is None:
+            continue
+        box_id = result.completed_box_id or f"{destination}-t{state.t:05d}-{result.shuttle_id}"
+        if box_id not in pallet.shipped_box_ids:
+            pallet.shipped_box_ids.append(box_id)
 

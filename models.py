@@ -104,6 +104,8 @@ class ShuttleTask:
     # Which already-stored box is targeted for pickup/delivery.
     pick_slot: Optional[Position] = None
     drop_to_head: bool = True
+    # Duration budget captured when the task starts. Used for playback interpolation.
+    total_seconds: int = 0
     remaining_seconds: int = 0
 
 
