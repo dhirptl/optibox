@@ -61,11 +61,24 @@ def build_initial_state(
 
 def run_tick(state: SimulationState, inbound_box: Optional[Box]) -> List[ShuttleStepResult]:
     """
+    Backward-compatible single-inbound tick.
+    """
+    inbound_boxes: List[Box] = []
+    if inbound_box is not None:
+        inbound_boxes.append(inbound_box)
+    return run_tick_batch(state, inbound_boxes)
+
+
+def run_tick_batch(
+    state: SimulationState,
+    inbound_boxes: Iterable[Box],
+) -> List[ShuttleStepResult]:
+    """
     Single global-tick owner.
 
     Ordered phases:
     1) pallet check
-    2) inbound decision + task creation
+    2) inbound decision + task creation (for all inbound events in this tick)
     3) shuttle step
     4) t += 1
     """
@@ -78,7 +91,7 @@ def run_tick(state: SimulationState, inbound_box: Optional[Box]) -> List[Shuttle
 
     # Phase 2: inbound is known at x=0, create executable task.
     # We only enqueue tasks that are fully decided and executable.
-    if inbound_box is not None:
+    for inbound_box in inbound_boxes:
         assigned_shuttle = _pick_next_shuttle(state)
         _assign_task_from_inbound(state, assigned_shuttle, inbound_box)
 

@@ -56,6 +56,7 @@ def step_shuttle(
 
     # When remaining time reaches zero, apply end-of-task state transitions.
     if shuttle.active_task.remaining_seconds == 0:
+        completed_task = shuttle.active_task
         _finalize_task_effects(shuttle, silo)
         shuttle.active_task = None
         shuttle.is_idle = True
@@ -65,7 +66,7 @@ def step_shuttle(
             started_task=started_task,
             finished_task=finished_task,
             remaining_seconds=0,
-            task_type=task.task_type.value,
+            task_type=completed_task.task_type.value,
             notes="task_completed",
         )
 
