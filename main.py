@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional
 
@@ -35,6 +36,9 @@ class SimulationState:
     t: int = 0
     next_shuttle_index: int = 0
     initial_load_stats: Optional[CsvLoadStats] = None
+    shipped_boxes_total: int = 0
+    shipped_by_destination: Counter[str] = field(default_factory=Counter)
+    shipped_pallets_total: int = 0
 
 
 def build_initial_state(
@@ -117,6 +121,7 @@ def run_tick_batch(
 
     # Phase 3: run one second of shuttle execution.
     results = step_all_shuttles(state.shuttles, state.silo, state.config)
+    _update_shipping_counters(state, results)
 
     # Phase 4: advance global time exactly once.
     state.t += 1
@@ -349,4 +354,28 @@ def _collect_reserved_slots(shuttles: List[Shuttle]) -> tuple[set[Position], set
             if queued_task.pick_slot is not None:
                 reserved_pick.add(queued_task.pick_slot)
     return reserved_store, reserved_pick
+
+
+def _update_shipping_counters(
+    state: SimulationState,
+    results: List[ShuttleStepResult],
+) -> None:
+    """
+    Count shipped boxes and completed pallets (12 shipped boxes per destination).
+    """
+    for result in results:
+        if not result.finished_task:
+            continue
+        if result.shipped_destination is None:
+            continue
+        destination = result.shipped_destination
+        state.shipped_boxes_total += 1
+        state.shipped_by_destination[destination] += 1
+        # Each new multiple of 12 means one more fully shipped pallet.
+        if state.shipped_by_destination[destination] % state.config.pallet_size == 0:
+            state.shipped_pallets_total += 1
+
+
+def get_shipped_pallets_total(state: SimulationState) -> int:
+    return state.shipped_pallets_total
 

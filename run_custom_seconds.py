@@ -131,6 +131,11 @@ def run_custom_seconds(
             f"outbound_only={active_tick_counts.get('outbound_only', 0)} "
             f"relocate={active_tick_counts.get('relocate', 0)}\n"
         )
+        f.write(
+            "[counters] shipped "
+            f"boxes_total={state.shipped_boxes_total} "
+            f"pallets_total={state.shipped_pallets_total}\n"
+        )
 
     return output_path.resolve()
 

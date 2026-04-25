@@ -13,6 +13,7 @@ class ShuttleStepResult:
     finished_task: bool
     remaining_seconds: int
     task_type: Optional[str]
+    shipped_destination: Optional[str]
     notes: str
 
 
@@ -47,6 +48,7 @@ def step_shuttle(
             finished_task=finished_task,
             remaining_seconds=0,
             task_type=None,
+            shipped_destination=None,
             notes="idle",
         )
 
@@ -67,6 +69,7 @@ def step_shuttle(
             finished_task=finished_task,
             remaining_seconds=0,
             task_type=completed_task.task_type.value,
+            shipped_destination=_get_shipped_destination(completed_task),
             notes="task_completed",
         )
 
@@ -76,6 +79,7 @@ def step_shuttle(
         finished_task=finished_task,
         remaining_seconds=shuttle.active_task.remaining_seconds,
         task_type=shuttle.active_task.task_type.value,
+        shipped_destination=None,
         notes="task_in_progress",
     )
 
@@ -173,4 +177,20 @@ def _finalize_task_effects(shuttle: Shuttle, silo: Silo) -> None:
 
     # Most cycles end by returning to head.
     shuttle.current_x = 0 if task.drop_to_head else shuttle.current_x
+
+
+def _get_shipped_destination(task: ShuttleTask) -> Optional[str]:
+    """
+    Return shipped destination when a completed task actually ships a box
+    to head/pallet. Non-shipping tasks return None.
+    """
+    if task.task_type == ShuttleTaskType.INBOUND_CROSS_DOCK:
+        return task.inbound_box.destination if task.inbound_box is not None else None
+    if task.task_type in {
+        ShuttleTaskType.INBOUND_STORE_AND_PICK,
+        ShuttleTaskType.OUTBOUND_ONLY,
+    }:
+        if task.drop_to_head and task.outbound_box is not None:
+            return task.outbound_box.destination
+    return None
 
