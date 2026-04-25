@@ -35,7 +35,7 @@ isProject: false
 - **Rule 1: Immediate cross-dock when possible**: If that inbound box destination already has an active pallet slot, do not store it. Pick at `x=0` (10s) and drop to pallet at `x=0` (10s).
 - **Rule 2: Store while traveling to next outbound**: If inbound cannot be cross-docked, store it on the way to an outbound box that should be shipped (destination with active pallet).
 - **Place depth preference**: When storing this inbound box, prefer dropping in `z=2`.
-- **Use `z=1` only for destination stacking**: Drop into `z=1` only when the `z=2` box in that location has the same destination as the inbound box, to avoid future relocation waste.
+- **Use `z=1` only for destination stacking**: If, on the path to the outbound pick, you pass a location where `z=2` has the same destination as the inbound box you are holding, drop it at `z=1` there (preferred stacking move). Otherwise keep the default `z=2` preference.
 - **Cycle repeats from head**: After delivering outbound to `x=0`, shuttle immediately takes the next inbound and repeats the same decision logic.
 
 ## Structure review (what works well)
@@ -43,6 +43,13 @@ isProject: false
 - **Separation of concerns**: `models.py` (data) vs a **slot heuristic** module vs a **shuttle runner** vs **pallet/dispatch** logic vs `main.py` (orchestration) keeps scoring, motion, and pallet rules in different files.
 - **Single master clock in `main.py`**: The tick sequence (pallet check → inbound → intercept → slot assign → shuttle step → `t += 1`) is the right place for **global ordering**; submodules should not advance time on their own.
 - **Decision rules in code**: Storage scoring and trip-duration formulas live in dedicated modules so behavior stays easy to find and test.
+
+## Time ownership contract (strict)
+
+- **Only `main.py` advances time**: `t += 1` happens exactly once per tick, and only at the end of the global tick sequence.
+- **Submodules are tick-local**: `dispatch.py`, `slot_heuristic.py`, and `shuttle_runner.py` compute decisions/state transitions for the current tick only; they never call sleep, run internal time loops, or increment `t`.
+- **Duration accounting lives in state, not wall-clock**: Task durations (for example `10 + d`) are stored as remaining tick counters and reduced during `shuttle step` when `main.py` executes that phase.
+- **Determinism requirement**: Given the same initial state and random seed, results must be identical. This is enforced by one clock owner and one fixed phase order.
 
 ## Module naming (no Dev1/2/3)
 
@@ -64,8 +71,9 @@ You can merge any of the three logic modules later if the repo stays small; spli
 2. **Constants**: Centralize literals (`10`, `20`, `12`, `8`, `32`, grid size) in `constants.py` or a `SimulationConfig` in `models.py`.
 3. **Box 20-digit format**: Fix one parser (`parse_box_id` → `Box`) and document digit positions; tests keep random inbound consistent.
 4. **Inbound → shuttle mapping**: Define how random feed picks one of the shuttles (aisle + Y) so slot search stays "within that shuttle's lane."
-5. **Corridor slot policy**: Implement "drop in `z=2` by default; use `z=1` only if backing `z=2` has same destination" as a hard rule in slot selection.
+5. **Corridor slot policy**: Implement "drop in `z=2` by default; but if a same-destination `z=2` is encountered on the way to the outbound pick, drop at `z=1` there" as a hard rule in slot selection.
 6. **Cross-dock priority at `x=0`**: Inbound destination with active pallet must bypass storage and go directly to pallet handling.
+7. **No hidden clock jumps**: Prohibit helper functions from advancing multiple ticks in one call; each call returns deltas that `main.py` applies within the current tick.
 
 ## Optional extra
 
@@ -91,7 +99,7 @@ flowchart LR
 | **1** | `models.py`: core types, parsing, minimal grid/inventory helpers | Everything imports this. |
 | **2** | `constants.py` + stub `main.py` with the real tick order and `t += 1` | Locks orchestration. |
 | **3** | `dispatch.py`: open pallet when count >= 12 and active < 8, reserve 12, detect "inbound destination has active pallet" | Enables mandatory direct cross-dock at `x=0`. |
-| **4** | `slot_heuristic.py`: enforce corridor placement (`z=2` default, `z=1` only same-destination-behind), X tie-break, on-the-way bias | Needs read-only silo + lane + selected outbound target X. |
+| **4** | `slot_heuristic.py`: enforce corridor placement (`z=2` default, promote on-path same-destination stacking at `z=1` over generic `z=2`), X tie-break, on-the-way bias | Needs read-only silo + lane + selected outbound target X. |
 | **5** | `shuttle_runner.py`: explicit cycle "take inbound at `x=0` -> cross-dock or store -> pick outbound -> return to `x=0`" with durations | Encodes the continuous shuttle behavior you described. |
 | **6** | Wire `main.py`: random inbound, dispatch gate, corridor slot decision, enqueue runner; tick shuttles; metrics/termination | Full simulation with corridor logic active each cycle. |
 | **7** | Tests as above | Regression safety. |
@@ -103,8 +111,8 @@ flowchart LR
 3. If inbound destination has active pallet, drop directly to pallet at `x=0` (`10s`) and finish cycle.
 4. Otherwise choose an outbound box to ship (destination with active pallet).
 5. While traveling toward that outbound X, drop inbound into a valid slot:
-   - Prefer `z=2`.
-   - Use `z=1` only when the box in `z=2` is same destination.
+   - First preference: if an on-path location has `z=2` with same destination, drop at `z=1` there.
+   - Otherwise, use normal preference: drop in `z=2`.
 6. Pick outbound, return to `x=0`, drop for shipping, and immediately start next cycle.
 
 ## Spec checks (logic only)
