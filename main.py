@@ -105,6 +105,16 @@ def run_tick_batch(
             reserved_pick_slots,
         )
 
+    # For remaining ready shuttles with no inbound assigned this tick, try to
+    # run outbound work (or relocate if blocked).
+    for shuttle in ready_shuttles[len(inbound_list) :]:
+        _assign_non_inbound_task(
+            state,
+            shuttle,
+            reserved_store_slots,
+            reserved_pick_slots,
+        )
+
     # Phase 3: run one second of shuttle execution.
     results = step_all_shuttles(state.shuttles, state.silo, state.config)
 
@@ -173,6 +183,73 @@ def _assign_task_from_inbound(
             inbound_box=inbound_box,
             outbound_box=outbound_box,
             store_slot=store_decision.position,
+            pick_slot=pick_slot,
+            drop_to_head=True,
+        )
+    )
+
+
+def _assign_non_inbound_task(
+    state: SimulationState,
+    shuttle: Shuttle,
+    reserved_store_slots: set[Position],
+    reserved_pick_slots: set[Position],
+) -> None:
+    pick_slot = _find_nearest_outbound_pick_slot(
+        silo=state.silo,
+        lane_aisle=shuttle.aisle,
+        lane_y=shuttle.y,
+        active_destinations=set(state.dispatcher.active_pallets.keys()),
+        blocked_positions=reserved_pick_slots,
+    )
+    if pick_slot is None:
+        return
+
+    pick_slot_obj = state.silo.get_slot(pick_slot)
+    if pick_slot_obj is None or pick_slot_obj.box is None:
+        return
+
+    # If outbound target is in z=2 and z=1 is occupied, relocate blocker first.
+    if pick_slot[4] == 2:
+        front_slot_pos: Position = (
+            pick_slot[0],
+            pick_slot[1],
+            pick_slot[2],
+            pick_slot[3],
+            1,
+        )
+        front_slot = state.silo.get_slot(front_slot_pos)
+        if front_slot is not None and front_slot.box is not None:
+            relocation = choose_store_slot_on_path(
+                silo=state.silo,
+                inbound_box=front_slot.box,
+                lane_aisle=shuttle.aisle,
+                lane_y=shuttle.y,
+                outbound_x=pick_slot[2],
+                blocked_positions=reserved_store_slots,
+            )
+            if relocation is None:
+                return
+
+            reserved_store_slots.add(relocation.position)
+            reserved_pick_slots.add(front_slot_pos)
+            shuttle.enqueue(
+                ShuttleTask(
+                    task_type=ShuttleTaskType.RELOCATE,
+                    inbound_box=front_slot.box,
+                    store_slot=relocation.position,
+                    pick_slot=front_slot_pos,
+                    drop_to_head=False,
+                )
+            )
+            return
+
+    # Normal outbound-only extraction to x=0.
+    reserved_pick_slots.add(pick_slot)
+    shuttle.enqueue(
+        ShuttleTask(
+            task_type=ShuttleTaskType.OUTBOUND_ONLY,
+            outbound_box=pick_slot_obj.box,
             pick_slot=pick_slot,
             drop_to_head=True,
         )
