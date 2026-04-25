@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from models import Position, Shuttle, ShuttleTask, ShuttleTaskType, Silo, SimulationConfig
+from models import Box, Position, Shuttle, ShuttleTask, ShuttleTaskType, Silo, SimulationConfig
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,7 @@ def step_shuttle(
         shuttle.active_task = shuttle.queue.pop(0)
         shuttle.is_idle = False
         started_task = True
+        shuttle.carrying = _get_task_primary_carry(shuttle.active_task)
         _initialize_task_duration(shuttle, config)
 
     # Nothing to execute this tick.
@@ -62,6 +63,7 @@ def step_shuttle(
         _finalize_task_effects(shuttle, silo)
         shuttle.active_task = None
         shuttle.is_idle = True
+        shuttle.carrying = None
         finished_task = True
         return ShuttleStepResult(
             shuttle_id=shuttle.shuttle_id,
@@ -192,5 +194,20 @@ def _get_shipped_destination(task: ShuttleTask) -> Optional[str]:
     }:
         if task.drop_to_head and task.outbound_box is not None:
             return task.outbound_box.destination
+    return None
+
+
+def _get_task_primary_carry(task: ShuttleTask) -> Optional[Box]:
+    """
+    Best-effort payload marker for frontend state.
+    """
+    if task.task_type in {
+        ShuttleTaskType.INBOUND_CROSS_DOCK,
+        ShuttleTaskType.INBOUND_STORE_AND_PICK,
+        ShuttleTaskType.RELOCATE,
+    }:
+        return task.inbound_box
+    if task.task_type == ShuttleTaskType.OUTBOUND_ONLY:
+        return task.outbound_box
     return None
 
