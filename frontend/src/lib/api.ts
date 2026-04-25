@@ -37,11 +37,23 @@ export async function healthCheck(): Promise<boolean> {
   }
 }
 
-export async function fetchSiloState(): Promise<SiloState> {
-  const res = await fetch("/data/silo_setup.csv", { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`fetchSiloState failed: ${res.status}`);
-  }
+async function tryFetchCsv(url: string): Promise<string | null> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return null;
   const text = await res.text();
+  // Vite's dev server returns index.html with 200 OK for unknown paths
+  // (SPA fallback). Detect and treat as a miss so the mock fallback runs.
+  if (text.trimStart().startsWith("<")) return null;
+  return text;
+}
+
+export async function fetchSiloState(): Promise<SiloState> {
+  // Try the live CSV (overwritten by server.py); fall back to the committed
+  // mock so the frontend works standalone when the backend is offline.
+  const live = await tryFetchCsv("/data/silo_setup.csv");
+  const text = live ?? (await tryFetchCsv("/data/silo_setup_mock.csv"));
+  if (text === null) {
+    throw new Error("fetchSiloState: no CSV available");
+  }
   return parseSiloCsv(text);
 }
