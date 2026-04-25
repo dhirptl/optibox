@@ -1,9 +1,12 @@
+import { useEffect, useMemo } from "react";
 import { formatPositionString } from "../lib/parsing";
 import type { SiloState, Slot } from "../lib/types";
 
 type Props = {
   silo: SiloState;
   y: number;
+  debugEnabled?: boolean;
+  highlightedPositions?: Set<string>;
   shuttleXByAisle?: Record<number, number>;
   selectedShuttle: number | null;
   onSelectSlot: (slot: Slot) => void;
@@ -27,12 +30,41 @@ const gridStyle: React.CSSProperties = {
 export function SiloCanvas({
   silo,
   y,
+  debugEnabled = false,
+  highlightedPositions = new Set<string>(),
   shuttleXByAisle = {},
   selectedShuttle,
   onSelectSlot,
   onSelectShuttle,
   onClearSelection,
 }: Props) {
+  const visibleFilledSlots = useMemo(() => {
+    if (!debugEnabled) return 0;
+    let filled = 0;
+    for (const aisle of AISLES) {
+      for (const side of [1, 2] as const) {
+        for (const x of X_RANGE) {
+          for (const z of [1, 2] as const) {
+            const key = formatPositionString({ aisle, side, x, y, z });
+            if (silo.get(key)?.box) {
+              filled += 1;
+            }
+          }
+        }
+      }
+    }
+    return filled;
+  }, [debugEnabled, silo, y]);
+
+  useEffect(() => {
+    if (!debugEnabled) return;
+    console.debug("[silo-canvas]", {
+      y,
+      visibleFilledSlots,
+      highlightedSlotsThisTick: highlightedPositions.size,
+    });
+  }, [debugEnabled, highlightedPositions, visibleFilledSlots, y]);
+
   return (
     <div
       className="flex flex-col items-center gap-6 py-6"
@@ -44,6 +76,7 @@ export function SiloCanvas({
           aisle={aisle}
           y={y}
           silo={silo}
+          highlightedPositions={highlightedPositions}
           shuttleX={shuttleXByAisle[aisle] ?? 0}
           shuttleSelected={selectedShuttle === aisle}
           onSelectSlot={onSelectSlot}
@@ -58,6 +91,7 @@ function AisleStrip({
   aisle,
   y,
   silo,
+  highlightedPositions,
   shuttleX,
   shuttleSelected,
   onSelectSlot,
@@ -66,6 +100,7 @@ function AisleStrip({
   aisle: number;
   y: number;
   silo: SiloState;
+  highlightedPositions: Set<string>;
   shuttleX: number;
   shuttleSelected: boolean;
   onSelectSlot: (slot: Slot) => void;
@@ -83,14 +118,28 @@ function AisleStrip({
       </div>
 
       <div className="flex flex-col gap-1 bg-white/40 px-3 py-3 rounded-md border border-border-soft">
-        <Row aisle={aisle} side={1} y={y} silo={silo} onSelectSlot={onSelectSlot} />
+        <Row
+          aisle={aisle}
+          side={1}
+          y={y}
+          silo={silo}
+          highlightedPositions={highlightedPositions}
+          onSelectSlot={onSelectSlot}
+        />
         <Corridor
           aisle={aisle}
           shuttleX={shuttleX}
           shuttleSelected={shuttleSelected}
           onSelectShuttle={onSelectShuttle}
         />
-        <Row aisle={aisle} side={2} y={y} silo={silo} onSelectSlot={onSelectSlot} />
+        <Row
+          aisle={aisle}
+          side={2}
+          y={y}
+          silo={silo}
+          highlightedPositions={highlightedPositions}
+          onSelectSlot={onSelectSlot}
+        />
         <Ruler />
       </div>
     </div>
@@ -102,12 +151,14 @@ function Row({
   side,
   y,
   silo,
+  highlightedPositions,
   onSelectSlot,
 }: {
   aisle: number;
   side: 1 | 2;
   y: number;
   silo: SiloState;
+  highlightedPositions: Set<string>;
   onSelectSlot: (slot: Slot) => void;
 }) {
   // Side 1 row: Z=2 on top (outer/wall), Z=1 on bottom (closer to corridor below).
@@ -128,8 +179,16 @@ function Row({
             className="flex flex-col"
             style={{ rowGap: `${ROW_GAP_PX}px` }}
           >
-            <BoxSquare slot={topSlot} onSelectSlot={onSelectSlot} />
-            <BoxSquare slot={bottomSlot} onSelectSlot={onSelectSlot} />
+            <BoxSquare
+              slot={topSlot}
+              highlighted={highlightedPositions.has(topKey)}
+              onSelectSlot={onSelectSlot}
+            />
+            <BoxSquare
+              slot={bottomSlot}
+              highlighted={highlightedPositions.has(bottomKey)}
+              onSelectSlot={onSelectSlot}
+            />
           </div>
         );
       })}
@@ -139,9 +198,11 @@ function Row({
 
 function BoxSquare({
   slot,
+  highlighted,
   onSelectSlot,
 }: {
   slot: Slot | undefined;
+  highlighted: boolean;
   onSelectSlot: (slot: Slot) => void;
 }) {
   const filled = slot?.box != null;
@@ -156,6 +217,7 @@ function BoxSquare({
       style={{ width: `${BOX_PX}px`, height: `${BOX_PX}px` }}
       className={
         "rounded-[2px] " +
+        (highlighted ? "ring-2 ring-accent/70 " : "") +
         (filled
           ? "bg-box-resting hover:bg-box-active transition-colors"
           : "border border-slot-empty bg-transparent cursor-default")

@@ -54,10 +54,11 @@ export default function App() {
     clearShuttle();
   }
 
-  async function handleStartSimulation(_numBoxes: number) {
+  async function handleStartSimulation(numBoxes: number) {
     const ok = await playback.startSimulation({
       ticks: 3600,
       inboundSeed: 42,
+      numBoxes,
       baseSilo: silo,
     });
     if (ok) {
@@ -105,13 +106,19 @@ export default function App() {
           setStartModalOpen(true);
         }}
       />
-      <YLevelSelector y={y} setY={setY} />
+      <YLevelSelector
+        y={y}
+        setY={setY}
+        unlockAllLevels={playback.debugEnabled}
+      />
 
       <div className="flex-1 flex overflow-hidden">
         <main className="flex-1 overflow-auto">
           <SiloCanvas
             silo={activeSilo}
             y={y}
+            debugEnabled={playback.debugEnabled}
+            highlightedPositions={playback.highlightedPositions}
             shuttleXByAisle={playback.shuttleXByAisle}
             selectedShuttle={selectedShuttle}
             onSelectSlot={selectSlot}

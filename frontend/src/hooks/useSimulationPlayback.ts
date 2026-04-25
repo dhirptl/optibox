@@ -46,6 +46,19 @@ export function useSimulationPlayback(selectedY: number) {
     if (!data || frameByTick.size === 0) return null;
     return frameByTick.get(currentTick) ?? null;
   }, [currentTick, data, frameByTick]);
+  const debugEnabled =
+    import.meta.env.DEV &&
+    (import.meta.env.VITE_SIM_DEBUG === "1" ||
+      (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("simDebug")));
+  const highlightedPositions = useMemo(() => {
+    const positions = new Set<string>();
+    const changes = frame?.grid_changes ?? [];
+    for (const change of changes) {
+      positions.add(change.position);
+    }
+    return positions;
+  }, [frame]);
 
   useEffect(() => {
     if (!playing || totalTicks <= 0) return;
@@ -66,25 +79,38 @@ export function useSimulationPlayback(selectedY: number) {
   useEffect(() => {
     if (!data || !baseSilo) return;
     setPlaybackSilo((prev) => {
-      let next = prev.size > 0 ? cloneSiloState(prev) : cloneSiloState(baseSilo);
       const appliedTick = appliedTickRef.current;
-      if (currentTick === appliedTick) return next;
+      if (currentTick === appliedTick) return prev;
+
+      let next = prev;
+      let didMutate = false;
+      const ensureClone = () => {
+        if (didMutate) return;
+        next = prev.size > 0 ? cloneSiloState(prev) : cloneSiloState(baseSilo);
+        didMutate = true;
+      };
 
       if (currentTick > appliedTick) {
         for (let tick = appliedTick + 1; tick <= currentTick; tick += 1) {
           const tickFrame = frameByTick.get(tick) ?? frameByTick.get(tick + 1);
           if (!tickFrame) continue;
-          applyGridChangesForwardInPlace(next, tickFrame.grid_changes ?? []);
+          const changes = tickFrame.grid_changes ?? [];
+          if (changes.length === 0) continue;
+          ensureClone();
+          applyGridChangesForwardInPlace(next, changes);
         }
       } else {
         for (let tick = appliedTick; tick > currentTick; tick -= 1) {
           const tickFrame = frameByTick.get(tick) ?? frameByTick.get(tick + 1);
           if (!tickFrame) continue;
-          applyGridChangesBackwardInPlace(next, tickFrame.grid_changes ?? []);
+          const changes = tickFrame.grid_changes ?? [];
+          if (changes.length === 0) continue;
+          ensureClone();
+          applyGridChangesBackwardInPlace(next, changes);
         }
       }
       appliedTickRef.current = currentTick;
-      return next;
+      return didMutate ? next : prev;
     });
   }, [baseSilo, currentTick, data, frameByTick]);
 
@@ -96,12 +122,35 @@ export function useSimulationPlayback(selectedY: number) {
     DEFAULT_METRICS;
   const metrics = frame?.metrics ?? DEFAULT_METRICS;
   const pallets: Pallet[] = frame?.pallet_slots ?? [];
-  const shuttles: ShuttleSnapshot[] = frame?.shuttles ?? [];
+  const shuttles: ShuttleSnapshot[] = useMemo(
+    () => frame?.shuttles ?? [],
+    [frame],
+  );
   const frameTick = Math.max(0, currentTick);
   const actionMessage =
     frameTick === 0
       ? "Awaiting simulation start..."
       : (frame?.action_message ?? "Awaiting simulation start...");
+  const currentTickGridChangeCount = frame?.grid_changes?.length ?? 0;
+
+  useEffect(() => {
+    if (!debugEnabled || !data) return;
+    console.debug("[sim-playback]", {
+      tick: currentTick,
+      totalTicks,
+      playing,
+      speed,
+      gridChangesThisTick: currentTickGridChangeCount,
+    });
+  }, [
+    currentTick,
+    currentTickGridChangeCount,
+    data,
+    debugEnabled,
+    playing,
+    speed,
+    totalTicks,
+  ]);
 
   const events: EventLogEntry[] = useMemo(() => {
     if (!data) return [];
@@ -191,6 +240,8 @@ export function useSimulationPlayback(selectedY: number) {
     shuttles,
     shuttleXByAisle,
     playbackSilo,
+    highlightedPositions,
+    debugEnabled,
     events,
     startSimulation,
     seek,

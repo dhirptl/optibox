@@ -1,11 +1,16 @@
 type Props = {
   y: number;
   setY: (y: number) => void;
+  unlockAllLevels?: boolean;
 };
 
 const Y_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
-export function YLevelSelector({ y, setY }: Props) {
+export function YLevelSelector({
+  y,
+  setY,
+  unlockAllLevels = false,
+}: Props) {
   return (
     <div className="flex items-center justify-center gap-3 py-3 border-b border-border-soft">
       <span className="text-[10px] tracking-widest text-text-secondary">
@@ -14,7 +19,7 @@ export function YLevelSelector({ y, setY }: Props) {
       <div className="flex items-center gap-1">
         {Y_LEVELS.map((level) => {
           const active = level === y;
-          const enabled = level === 1;
+          const enabled = unlockAllLevels || level === 1;
           return (
             <button
               key={level}
