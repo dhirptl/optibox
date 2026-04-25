@@ -22,6 +22,7 @@ from models import (
 )
 from shuttle_runner import ShuttleStepResult, step_all_shuttles
 from slot_heuristic import choose_store_slot_on_path
+from state_loader import CsvLoadStats, preload_silo_from_csv
 
 
 @dataclass
@@ -33,14 +34,29 @@ class SimulationState:
     dispatcher: DispatcherState = field(default_factory=DispatcherState)
     t: int = 0
     next_shuttle_index: int = 0
+    initial_load_stats: Optional[CsvLoadStats] = None
 
 
-def build_initial_state(config: Optional[SimulationConfig] = None) -> SimulationState:
+def build_initial_state(
+    config: Optional[SimulationConfig] = None,
+    csv_path: Optional[str] = None,
+    strict_positions: bool = True,
+) -> SimulationState:
     # Build a full empty grid plus one shuttle per (aisle, y).
     cfg = config or SimulationConfig()
     silo = build_empty_silo(cfg)
     shuttles = _build_shuttles(cfg)
-    return SimulationState(config=cfg, silo=silo, shuttles=shuttles)
+    state = SimulationState(config=cfg, silo=silo, shuttles=shuttles)
+
+    # Optional startup preload from snapshot CSV.
+    if csv_path:
+        state.initial_load_stats = preload_silo_from_csv(
+            csv_path=csv_path,
+            silo=state.silo,
+            strict_positions=strict_positions,
+        )
+
+    return state
 
 
 def run_tick(state: SimulationState, inbound_box: Optional[Box]) -> List[ShuttleStepResult]:
