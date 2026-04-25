@@ -24,7 +24,7 @@ export function TopBar({ onAfterReset }: Props) {
   }
 
   return (
-    <header className="bg-white/60 border-b border-border-soft px-8 py-4 flex items-center gap-8">
+    <header className="bg-white/60 border-b border-border-soft pl-16 pr-8 py-4 flex items-center gap-8">
       <div className="flex flex-col leading-tight">
         <span className="font-sans font-bold tracking-wider text-text-primary text-xl">
           OPTIBOX

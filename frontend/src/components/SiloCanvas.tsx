@@ -168,34 +168,31 @@ function Corridor({
   shuttleSelected: boolean;
   onSelectShuttle: (id: number) => void;
 }) {
-  // Phase 1: shuttle parked at X=1 (the head position). One shuttle per aisle for Y=1.
+  // Shuttle at X=0 — the lane *before* column 1, sitting in the strip's left padding.
   return (
     <div
       style={{ ...gridStyle, height: "10px" }}
       className="bg-pallet-empty rounded-[2px] relative"
     >
-      <div
-        className="flex items-center"
-        style={{
-          gridColumn: 1,
-          gridRow: 1,
-          height: "10px",
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectShuttle(aisle);
         }}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectShuttle(aisle);
-          }}
-          aria-label={`Shuttle aisle ${aisle}`}
-          style={{ width: "12px", height: "8px" }}
-          className={
-            "bg-shuttle rounded-[2px] " +
-            (shuttleSelected ? "outline outline-2 outline-accent" : "")
-          }
-        />
-      </div>
+        aria-label={`Shuttle aisle ${aisle}`}
+        style={{
+          position: "absolute",
+          left: "-13px",
+          top: "1px",
+          width: "12px",
+          height: "8px",
+        }}
+        className={
+          "bg-shuttle rounded-[2px] " +
+          (shuttleSelected ? "outline outline-2 outline-accent" : "")
+        }
+      />
     </div>
   );
 }
