@@ -206,6 +206,7 @@ def _assign_non_inbound_task(
         lane_y=shuttle.y,
         active_destinations=set(state.dispatcher.active_pallets.keys()),
         blocked_positions=reserved_pick_slots,
+        allow_blocked_z2=True,
     )
     if pick_slot is None:
         return
@@ -267,6 +268,7 @@ def _find_nearest_outbound_pick_slot(
     lane_y: int,
     active_destinations: set[str],
     blocked_positions: set[Position],
+    allow_blocked_z2: bool = False,
 ) -> Optional[Position]:
     # Scan the shuttle lane and keep only boxes for active pallet destinations.
     candidates: List[Position] = []
@@ -280,6 +282,19 @@ def _find_nearest_outbound_pick_slot(
             continue
         if position in blocked_positions:
             continue
+        # Enforce z=2 retrieval rule unless caller explicitly wants blocked z=2
+        # candidates (used by relocation planning path).
+        if position[4] == 2 and not allow_blocked_z2:
+            z1_pos: Position = (
+                position[0],
+                position[1],
+                position[2],
+                position[3],
+                1,
+            )
+            z1_slot = silo.get_slot(z1_pos)
+            if z1_slot is not None and z1_slot.box is not None:
+                continue
         candidates.append(position)
 
     if not candidates:

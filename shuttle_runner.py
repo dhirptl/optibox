@@ -174,6 +174,19 @@ def _finalize_task_effects(shuttle: Shuttle, silo: Silo) -> None:
         silo.place_box(task.store_slot, task.inbound_box)
 
     if task.pick_slot is not None:
+        if task.pick_slot[4] == 2:
+            z1_pos: Position = (
+                task.pick_slot[0],
+                task.pick_slot[1],
+                task.pick_slot[2],
+                task.pick_slot[3],
+                1,
+            )
+            z1_slot = silo.get_slot(z1_pos)
+            if z1_slot is not None and z1_slot.box is not None:
+                raise ValueError(
+                    f"Illegal z=2 retrieval at {task.pick_slot}: z=1 is occupied at {z1_pos}."
+                )
         # Box is removed from silo because it is now considered picked for shipping.
         _ = silo.remove_box(task.pick_slot)
 
