@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from models import Box
 
@@ -20,9 +20,11 @@ class InboundBoxGenerator:
     destination_count: int = 20
     seed: Optional[int] = None
     start_bulk_number: int = 0
+    bulk_counter_mode: str = "per_destination"
     destination_pool: List[str] = field(init=False)
     _rng: random.Random = field(init=False, repr=False)
-    _bulk_counter: int = field(init=False, repr=False)
+    _global_bulk_counter: int = field(init=False, repr=False)
+    _bulk_counter_by_destination: Dict[str, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         if len(self.source_code) != 7 or not self.source_code.isdigit():
@@ -35,22 +37,23 @@ class InboundBoxGenerator:
             raise ValueError("start_bulk_number must be >= 0.")
         if self.start_bulk_number > 99_999:
             raise ValueError("start_bulk_number must be <= 99999.")
+        if self.bulk_counter_mode not in {"global", "per_destination"}:
+            raise ValueError("bulk_counter_mode must be 'global' or 'per_destination'.")
 
         self._rng = random.Random(self.seed)
-        self._bulk_counter = self.start_bulk_number
         self.destination_pool = self._build_destination_pool(self.destination_count)
+        self._global_bulk_counter = self.start_bulk_number
+        self._bulk_counter_by_destination = {
+            destination: self.start_bulk_number for destination in self.destination_pool
+        }
 
     def next_box(self) -> Box:
         """
         Build one new inbound box.
         """
-        if self._bulk_counter > 99_999:
-            raise ValueError("Bulk number overflow: reached 99999.")
-
         destination = self._rng.choice(self.destination_pool)
-        bulk_number = f"{self._bulk_counter:05d}"
+        bulk_number = self._next_bulk_number_for(destination)
         box_id = f"{self.source_code}{destination}{bulk_number}"
-        self._bulk_counter += 1
         return Box.parse_box_id(box_id)
 
     def next_boxes(self, n: int) -> List[Box]:
@@ -62,3 +65,21 @@ class InboundBoxGenerator:
     def _build_destination_pool(count: int) -> List[str]:
         # Use deterministic canonical 8-digit codes: 00000000, 00000001, ...
         return [f"{i:08d}" for i in range(count)]
+
+    def _next_bulk_number_for(self, destination: str) -> str:
+        if self.bulk_counter_mode == "global":
+            if self._global_bulk_counter > 99_999:
+                raise ValueError("Bulk number overflow in global mode: reached 99999.")
+            bulk_number = f"{self._global_bulk_counter:05d}"
+            self._global_bulk_counter += 1
+            return bulk_number
+
+        # per_destination mode
+        current = self._bulk_counter_by_destination[destination]
+        if current > 99_999:
+            raise ValueError(
+                f"Bulk number overflow for destination {destination}: reached 99999."
+            )
+        bulk_number = f"{current:05d}"
+        self._bulk_counter_by_destination[destination] = current + 1
+        return bulk_number
