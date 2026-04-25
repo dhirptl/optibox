@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 from typing import Literal
 
@@ -25,6 +26,8 @@ def run_custom_seconds(
     generator = InboundBoxGenerator(seed=inbound_seed)
     lines_written = 0
     stopped_early = False
+    started_task_counts: Counter[str] = Counter()
+    active_tick_counts: Counter[str] = Counter()
 
     with output_path.open("w", encoding="utf-8") as f:
         if state.initial_load_stats is not None:
@@ -46,13 +49,27 @@ def run_custom_seconds(
             inbound_boxes = generator.next_boxes(inbound_count)
             results = run_tick_batch(state, inbound_boxes)
 
+            # Global counters so we can verify which task types are actually used.
+            for result in results:
+                if result.task_type is None:
+                    continue
+                active_tick_counts[result.task_type] += 1
+                if result.started_task:
+                    started_task_counts[result.task_type] += 1
+
             if detail == "summary":
                 active = sum(1 for r in results if r.notes != "idle")
                 started = sum(1 for r in results if r.started_task)
                 finished = sum(1 for r in results if r.finished_task)
+                cross_dock_started = sum(
+                    1
+                    for r in results
+                    if r.started_task and r.task_type == "inbound_cross_dock"
+                )
                 f.write(
                     f"[t={state.t:05d}] inbound_count={inbound_count} "
-                    f"active={active} started={started} finished={finished}\n"
+                    f"active={active} started={started} finished={finished} "
+                    f"cross_dock_started={cross_dock_started}\n"
                 )
                 lines_written += 1
                 continue
@@ -100,12 +117,27 @@ def run_custom_seconds(
                 f"lines_written={lines_written}\n"
             )
 
+        f.write(
+            "[counters] started_tasks "
+            f"inbound_cross_dock={started_task_counts.get('inbound_cross_dock', 0)} "
+            f"inbound_store_and_pick={started_task_counts.get('inbound_store_and_pick', 0)} "
+            f"outbound_only={started_task_counts.get('outbound_only', 0)} "
+            f"relocate={started_task_counts.get('relocate', 0)}\n"
+        )
+        f.write(
+            "[counters] active_tick_presence "
+            f"inbound_cross_dock={active_tick_counts.get('inbound_cross_dock', 0)} "
+            f"inbound_store_and_pick={active_tick_counts.get('inbound_store_and_pick', 0)} "
+            f"outbound_only={active_tick_counts.get('outbound_only', 0)} "
+            f"relocate={active_tick_counts.get('relocate', 0)}\n"
+        )
+
     return output_path.resolve()
 
 
 if __name__ == "__main__":
     # Change this value to simulate any number of seconds.
-    TICKS = 100
+    TICKS = 1000
     # Choose "summary" for compact output, "active_only" or "full" for detail.
     DETAIL = "summary"
     log_file = run_custom_seconds(
