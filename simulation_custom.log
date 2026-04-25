@@ -1002,3 +1002,4 @@
 [done] stopped_early=false completed_seconds=1000 lines_written=1001
 [counters] started_tasks inbound_cross_dock=0 inbound_store_and_pick=353 outbound_only=0 relocate=0
 [counters] active_tick_presence inbound_cross_dock=0 inbound_store_and_pick=14189 outbound_only=0 relocate=0
+[counters] shipped boxes_total=353 pallets_total=25
