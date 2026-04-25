@@ -12,6 +12,7 @@ class ShuttleStepResult:
     started_task: bool
     finished_task: bool
     remaining_seconds: int
+    task_type: Optional[str]
     notes: str
 
 
@@ -45,6 +46,7 @@ def step_shuttle(
             started_task=started_task,
             finished_task=finished_task,
             remaining_seconds=0,
+            task_type=None,
             notes="idle",
         )
 
@@ -63,6 +65,7 @@ def step_shuttle(
             started_task=started_task,
             finished_task=finished_task,
             remaining_seconds=0,
+            task_type=task.task_type.value,
             notes="task_completed",
         )
 
@@ -71,6 +74,7 @@ def step_shuttle(
         started_task=started_task,
         finished_task=finished_task,
         remaining_seconds=shuttle.active_task.remaining_seconds,
+        task_type=shuttle.active_task.task_type.value,
         notes="task_in_progress",
     )
 
